@@ -568,8 +568,8 @@ async function fetchAllYahoo() {
 }
 
 async function fetchRowYahoo(tr, ticker, d1, d2) {
-    // We request 10 years of data to be safe
-    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=10y`;
+    // UPDATED: Using range=max to ensure we can get prices further back than 10 years
+    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=max`;
     const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(targetUrl);
     
     const res = await fetch(proxyUrl);
@@ -587,6 +587,7 @@ async function fetchRowYahoo(tr, ticker, d1, d2) {
         let closestPrice = null;
         let minDiff = Infinity;
         
+        // Loop backwards
         for(let i = timestamps.length - 1; i >= 0; i--) {
             const diff = Math.abs(timestamps[i] - targetTime);
             // Within 4 days
@@ -596,7 +597,8 @@ async function fetchRowYahoo(tr, ticker, d1, d2) {
                     closestPrice = quotes[i];
                 }
             }
-            if(timestamps[i] < targetTime - 400000) break;
+            // Optimization: if we are more than 5 days past target time, we can stop searching backwards
+            if(timestamps[i] < targetTime - 432000) break;
         }
         return closestPrice;
     };
