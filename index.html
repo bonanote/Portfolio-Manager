@@ -2,221 +2,347 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Simple Stock Tracker (No API)</title>
+<title>Advanced Stock Return Analyzer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 20px; background: #f4f6f8; color: #333; }
-  h1 { text-align: center; color: #1a1a1a; margin-bottom: 5px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 20px; background: #f0f4f8; color: #333; }
+  h1 { text-align: center; color: #1a1a1a; margin-bottom: 10px; }
   .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.9em; }
 
-  /* Main Container */
-  .container { max-width: 1000px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+  /* Layout */
+  .container { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+  @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
 
-  /* Controls */
-  .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  button.add-btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-size: 16px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
-  button.add-btn:hover { background: #0056b3; }
-  button.clear-btn { background: transparent; color: #dc3545; border: 1px solid #dc3545; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-  button.clear-btn:hover { background: #fff5f5; }
-
-  /* Table */
-  .table-wrapper { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; min-width: 800px; }
-  th { text-align: left; padding: 12px; color: #666; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #eee; }
-  td { padding: 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
-  tr:last-child td { border-bottom: none; }
-
-  /* Inputs */
-  input { padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; width: 100%; box-sizing: border-box; transition: border 0.2s; }
-  input:focus { border-color: #007bff; outline: none; }
-  input.ticker-input { text-transform: uppercase; font-weight: bold; width: 80px; }
-  input.num-input { width: 100px; }
+  /* Cards */
+  .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
   
-  /* Current Price Input Styling */
-  .current-price-wrapper { position: relative; }
-  .current-price-wrapper input { border-color: #007bff; background-color: #f0f7ff; font-weight: bold; color: #0056b3; }
-  .current-price-wrapper::after { content: "Update Me"; position: absolute; right: -70px; top: 50%; transform: translateY(-50%); font-size: 10px; color: #007bff; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
-  .current-price-wrapper:hover::after { opacity: 1; }
+  /* Inputs */
+  .input-group { margin-bottom: 15px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  input[type="text"], input[type="number"], input[type="date"] {
+    width: 100%; padding: 10px; border: 1px solid #dfe3e8; border-radius: 6px; font-size: 16px; box-sizing: border-box; transition: all 0.2s;
+  }
+  input:focus { border-color: #007bff; outline: none; background: #f9fbff; }
+  
+  /* Special Inputs */
+  .ticker-input { text-transform: uppercase; letter-spacing: 1px; font-weight: bold; font-size: 18px !important; }
+  .price-row { display: flex; gap: 10px; align-items: flex-end; }
+  .price-input-wrapper { flex: 1; position: relative; }
+  .price-input-wrapper span { position: absolute; left: 10px; top: 10px; color: #666; }
+  .price-input-wrapper input { padding-left: 20px; font-weight: bold; color: #333; }
+  
+  /* Buttons */
+  .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+  .btn-primary { background: #007bff; color: white; }
+  .btn-outline { background: transparent; border: 1px solid #ccc; color: #666; margin-top: 10px; }
+  .btn:hover { opacity: 0.9; }
+
+  /* Results Panel */
+  .results-header { font-size: 18px; font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+  .result-item { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; }
+  .big-metric { text-align: center; margin: 25px 0; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+  .metric-label { font-size: 13px; color: #666; text-transform: uppercase; }
+  .metric-value { font-size: 32px; font-weight: 800; color: #333; }
+  
+  .positive { color: #28a745; }
+  .negative { color: #dc3545; }
+
+  /* Status Bar */
+  #apiStatus { font-size: 13px; text-align: center; margin-top: 10px; min-height: 20px; }
 
   /* Yahoo Link */
-  .yahoo-link { text-decoration: none; color: #666; font-size: 14px; margin-left: 8px; padding: 4px; border-radius: 4px; background: #eee; transition: all 0.2s; }
-  .yahoo-link:hover { background: #500095; color: white; }
-
-  /* Badges */
-  .gain-tag { padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 14px; display: inline-block; min-width: 60px; text-align: center; }
-  .positive { background: #d4edda; color: #155724; }
-  .negative { background: #f8d7da; color: #721c24; }
-  .neutral { background: #eee; color: #666; }
-
-  /* Remove Button */
-  .remove-btn { color: #ccc; background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 10px; }
-  .remove-btn:hover { color: #dc3545; }
-
-  /* Summary Footer */
-  .summary { margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee; display: flex; justify-content: flex-end; gap: 40px; }
-  .summary-item { text-align: right; }
-  .summary-label { display: block; color: #666; font-size: 12px; margin-bottom: 4px; }
-  .summary-value { font-size: 24px; font-weight: 700; color: #333; }
+  .yahoo-btn {
+      display: inline-block; text-decoration: none; background: #720e9e; color: white; 
+      padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 5px;
+  }
 </style>
 </head>
 <body>
 
-<h1>My Stock Portfolio</h1>
-<div class="subtitle">Manual Tracker • No API Keys • Auto-Saves</div>
+<h1>Stock Return Analyzer</h1>
+<div class="subtitle">Compare Start vs. End Dates • Calculate Returns</div>
 
 <div class="container">
-  <div class="controls">
-    <button class="add-btn" onclick="addStock()">+ Add Stock</button>
-    <button class="clear-btn" onclick="clearData()">Reset All</button>
+  
+  <!-- LEFT COLUMN: INPUTS -->
+  <div class="card">
+    <!-- API Key (Optional) -->
+    <div style="background:#fff3cd; padding:10px; border-radius:6px; margin-bottom:20px; border:1px solid #ffeeba;">
+      <label style="margin-bottom:0;">API Key (Optional for Auto-Fetch)</label>
+      <div style="display:flex; gap:5px; margin-top:5px;">
+        <input type="text" id="apiKey" placeholder="Paste FMP Key Here" style="font-size:13px; padding:6px;">
+        <button onclick="saveKey()" style="width:auto; padding:0 15px; font-size:13px; cursor:pointer;">Save</button>
+      </div>
+      <div id="apiStatus" style="color:#856404;">Enter key to attempt auto-filling prices.</div>
+    </div>
+
+    <div class="input-group">
+      <label>Stock Ticker</label>
+      <div style="display:flex; align-items:center;">
+        <input type="text" id="ticker" class="ticker-input" placeholder="AAPL" value="AAPL">
+        <a id="yahooLink" href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="yahoo-btn">View on Yahoo</a>
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label>Shares Owned</label>
+      <input type="number" id="shares" value="100">
+    </div>
+
+    <hr style="border:0; border-top:1px solid #eee; margin:25px 0;">
+
+    <!-- DATE 1 (START) -->
+    <div class="input-group">
+      <label>Start Date (Purchase)</label>
+      <div class="price-row">
+        <input type="date" id="date1">
+        <div class="price-input-wrapper">
+          <span>$</span>
+          <input type="number" id="price1" placeholder="Start Price" step="0.01">
+        </div>
+      </div>
+      <small style="color:#999; font-size:11px;">Select date to auto-fetch, or type price manually.</small>
+    </div>
+
+    <!-- DATE 2 (END) -->
+    <div class="input-group">
+      <label>End Date (Sale/Current)</label>
+      <div class="price-row">
+        <input type="date" id="date2">
+        <div class="price-input-wrapper">
+          <span>$</span>
+          <input type="number" id="price2" placeholder="End Price" step="0.01">
+        </div>
+      </div>
+      <small style="color:#999; font-size:11px;">Defaults to Today.</small>
+    </div>
+
+    <button class="btn btn-primary" id="calcBtn" onclick="calculate()">Recalculate</button>
+    <button class="btn btn-outline" onclick="fetchData()">Attempt Auto-Fetch Prices</button>
   </div>
 
-  <div class="table-wrapper">
-    <table id="portfolioTable">
-      <thead>
-        <tr>
-          <th width="15%">Ticker</th>
-          <th width="15%">Shares</th>
-          <th width="15%">Avg. Cost ($)</th>
-          <th width="20%">Current Price ($)</th>
-          <th width="15%">Market Value</th>
-          <th width="15%">Gain/Loss</th>
-          <th width="5%"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Rows will be injected here -->
-      </tbody>
-    </table>
+  <!-- RIGHT COLUMN: RESULTS -->
+  <div class="card">
+    <div class="results-header">Performance Analysis</div>
+    
+    <div class="result-item">
+      <span>Initial Investment:</span>
+      <span id="resInitial" style="font-weight:bold;">$0.00</span>
+    </div>
+    <div class="result-item">
+      <span>Final Value:</span>
+      <span id="resFinal" style="font-weight:bold;">$0.00</span>
+    </div>
+    <div class="result-item">
+      <span>Time Period:</span>
+      <span id="resYears">0.0 Years</span>
+    </div>
+
+    <div class="big-metric">
+      <div class="metric-label">Total Gain / Loss</div>
+      <div class="metric-value" id="resGain">$0.00</div>
+    </div>
+
+    <div class="big-metric">
+      <div class="metric-label">Total Return %</div>
+      <div class="metric-value" id="resReturn">0.00%</div>
+    </div>
+
+    <div class="big-metric" style="background:#e3f2fd;">
+      <div class="metric-label">Annualized Return (CAGR)</div>
+      <div class="metric-value" id="resCAGR" style="color:#007bff;">0.00%</div>
+    </div>
   </div>
 
-  <div class="summary">
-    <div class="summary-item">
-      <span class="summary-label">TOTAL COST</span>
-      <span class="summary-value" id="totalCost">$0.00</span>
-    </div>
-    <div class="summary-item">
-      <span class="summary-label">CURRENT VALUE</span>
-      <span class="summary-value" id="totalValue">$0.00</span>
-    </div>
-    <div class="summary-item">
-      <span class="summary-label">TOTAL GAIN</span>
-      <span class="summary-value" id="totalGain">$0.00</span>
-    </div>
-  </div>
 </div>
 
 <script>
-// Load data from LocalStorage on startup
-let portfolio = JSON.parse(localStorage.getItem('myPortfolio')) || [
-  { id: Date.now(), ticker: 'AAPL', shares: 10, cost: 150, current: 220 }
-];
+const FMP_BASE = "https://financialmodelingprep.com/api/v3";
+// Elements
+const els = {
+  key: document.getElementById('apiKey'),
+  ticker: document.getElementById('ticker'),
+  shares: document.getElementById('shares'),
+  d1: document.getElementById('date1'),
+  p1: document.getElementById('price1'),
+  d2: document.getElementById('date2'),
+  p2: document.getElementById('price2'),
+  status: document.getElementById('apiStatus'),
+  yahoo: document.getElementById('yahooLink')
+};
 
-const tbody = document.querySelector("#portfolioTable tbody");
+// Init
+const savedKey = localStorage.getItem('fmp_key');
+if(savedKey) els.key.value = savedKey;
 
-function saveData() {
-  localStorage.setItem('myPortfolio', JSON.stringify(portfolio));
-  render();
+// Defaults: Start = 1 year ago, End = Today
+els.d2.value = dayjs().format("YYYY-MM-DD");
+els.d1.value = dayjs().subtract(1, 'year').format("YYYY-MM-DD");
+
+// Events
+els.ticker.addEventListener('input', () => {
+    els.yahoo.href = `https://finance.yahoo.com/quote/${els.ticker.value}`;
+    calculate();
+});
+['shares','p1','p2'].forEach(id => document.getElementById(id).addEventListener('input', calculate));
+
+function saveKey() {
+    localStorage.setItem('fmp_key', els.key.value.trim());
+    els.status.textContent = "Key Saved!";
+    els.status.style.color = "green";
+    setTimeout(() => els.status.textContent = "", 2000);
 }
 
-function addStock() {
-  portfolio.push({
-    id: Date.now(),
-    ticker: '',
-    shares: 0,
-    cost: 0,
-    current: 0
-  });
-  render();
-}
-
-function removeStock(id) {
-  portfolio = portfolio.filter(stock => stock.id !== id);
-  saveData();
-}
-
-function updateStock(id, field, value) {
-  const stock = portfolio.find(s => s.id === id);
-  if (stock) {
-    if (field === 'ticker') {
-      stock[field] = value.toUpperCase();
-    } else {
-      stock[field] = parseFloat(value) || 0;
+// --- API FETCH LOGIC ---
+async function fetchData() {
+    const key = els.key.value.trim();
+    const ticker = els.ticker.value.toUpperCase();
+    
+    if(!key) {
+        alert("Please enter an API Key to use auto-fetch.");
+        return;
     }
-    saveData();
-  }
+    if(!ticker) {
+        alert("Enter a ticker symbol.");
+        return;
+    }
+
+    els.status.textContent = "Fetching data...";
+    els.status.style.color = "blue";
+
+    try {
+        // Fetch Date 1 (Historical)
+        if(els.d1.value) {
+            const p1 = await getPriceAtDate(ticker, els.d1.value, key);
+            if(p1) {
+                els.p1.value = p1;
+                // Add a visual flash to show it updated
+                els.p1.style.backgroundColor = "#d4edda";
+                setTimeout(() => els.p1.style.backgroundColor = "", 1000);
+            }
+        }
+
+        // Fetch Date 2 (Historical or Current)
+        if(els.d2.value) {
+            const isToday = dayjs(els.d2.value).isSame(dayjs(), 'day');
+            let p2;
+            
+            if(isToday) {
+                // Use quote-short for today
+                const res = await fetch(`${FMP_BASE}/quote-short/${ticker}?apikey=${key}`);
+                const data = await res.json();
+                if(data && data[0]) p2 = data[0].price;
+            } else {
+                // Use historical
+                p2 = await getPriceAtDate(ticker, els.d2.value, key);
+            }
+
+            if(p2) {
+                els.p2.value = p2;
+                els.p2.style.backgroundColor = "#d4edda";
+                setTimeout(() => els.p2.style.backgroundColor = "", 1000);
+            }
+        }
+        
+        els.status.textContent = "Fetch complete.";
+        els.status.style.color = "green";
+        calculate();
+
+    } catch(e) {
+        console.error(e);
+        els.status.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+        if(e.message.includes("403") || e.message.includes("Legacy")) {
+            alert("API Restriction Detected: You may need to enter prices manually for historical dates if your plan doesn't support them.");
+        }
+    }
 }
 
-function clearData() {
-  if(confirm("Delete all data?")) {
-    portfolio = [];
-    saveData();
-  }
+async function getPriceAtDate(ticker, dateStr, key) {
+    // FMP Historical Endpoint
+    // We fetch a range around the date to ensure we find a trading day
+    const from = dayjs(dateStr).subtract(4, 'day').format("YYYY-MM-DD");
+    const to = dayjs(dateStr).add(4, 'day').format("YYYY-MM-DD");
+    
+    const url = `${FMP_BASE}/historical-price-full/${ticker}?from=${from}&to=${to}&apikey=${key}`;
+    const res = await fetch(url);
+    
+    if(!res.ok) {
+        if(res.status === 403) throw new Error("403 Forbidden (Plan Limit)");
+        throw new Error(`HTTP ${res.status}`);
+    }
+    
+    const data = await res.json();
+    if(data["Error Message"]) throw new Error(data["Error Message"]);
+    
+    const hist = data.historical || [];
+    if(hist.length === 0) return null;
+
+    // Find closest date in result
+    const target = dayjs(dateStr);
+    let closest = null;
+    let minDiff = Infinity;
+
+    hist.forEach(day => {
+        const d = dayjs(day.date);
+        const diff = Math.abs(d.diff(target, 'day'));
+        if(diff < minDiff) {
+            minDiff = diff;
+            closest = day.close; // 'close' or 'adjClose'
+        }
+    });
+
+    return closest;
 }
 
-function render() {
-  tbody.innerHTML = '';
-  let totalCost = 0;
-  let totalValue = 0;
+// --- CALCULATION LOGIC ---
+function calculate() {
+    const shares = parseFloat(els.shares.value) || 0;
+    const p1 = parseFloat(els.p1.value) || 0;
+    const p2 = parseFloat(els.p2.value) || 0;
+    const d1 = dayjs(els.d1.value);
+    const d2 = dayjs(els.d2.value);
 
-  portfolio.forEach(stock => {
-    const marketValue = stock.shares * stock.current;
-    const costBasis = stock.shares * stock.cost;
-    const gain = marketValue - costBasis;
-    const gainPct = costBasis > 0 ? (gain / costBasis) * 100 : 0;
+    // Basic Maths
+    const initialVal = shares * p1;
+    const finalVal = shares * p2;
+    const gain = finalVal - initialVal;
+    
+    // Time Diff
+    const diffDays = d2.diff(d1, 'day');
+    const years = diffDays / 365.25;
 
-    totalCost += costBasis;
-    totalValue += marketValue;
+    // Returns
+    const totalReturnPct = initialVal > 0 ? (gain / initialVal) : 0;
+    
+    // CAGR: (End/Start)^(1/years) - 1
+    let cagr = 0;
+    if(initialVal > 0 && finalVal > 0 && years > 0) {
+        cagr = Math.pow((finalVal / initialVal), (1 / years)) - 1;
+    }
 
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>
-        <div style="display:flex; align-items:center;">
-          <input type="text" class="ticker-input" value="${stock.ticker}" 
-            oninput="updateStock(${stock.id}, 'ticker', this.value)" placeholder="SYM">
-          ${stock.ticker ? `<a href="https://finance.yahoo.com/quote/${stock.ticker}" target="_blank" class="yahoo-link" title="Check Price on Yahoo">🔍</a>` : ''}
-        </div>
-      </td>
-      <td>
-        <input type="number" class="num-input" value="${stock.shares || ''}" 
-          oninput="updateStock(${stock.id}, 'shares', this.value)" placeholder="0">
-      </td>
-      <td>
-        <input type="number" class="num-input" value="${stock.cost || ''}" 
-          oninput="updateStock(${stock.id}, 'cost', this.value)" placeholder="0.00">
-      </td>
-      <td>
-        <div class="current-price-wrapper">
-          <input type="number" class="num-input" value="${stock.current || ''}" 
-            oninput="updateStock(${stock.id}, 'current', this.value)" placeholder="0.00">
-        </div>
-      </td>
-      <td style="font-weight:bold;">$${marketValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-      <td>
-        <span class="gain-tag ${gain >= 0 ? 'positive' : 'negative'}">
-          ${gain >= 0 ? '+' : ''}${gain.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})} 
-          (${gainPct.toFixed(1)}%)
-        </span>
-      </td>
-      <td>
-        <button class="remove-btn" onclick="removeStock(${stock.id})">&times;</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
+    // --- UI UPDATES ---
+    document.getElementById('resInitial').textContent = fmtMoney(initialVal);
+    document.getElementById('resFinal').textContent = fmtMoney(finalVal);
+    document.getElementById('resYears').textContent = `${years.toFixed(2)} Years`;
+    
+    const gainEl = document.getElementById('resGain');
+    gainEl.textContent = (gain >= 0 ? "+" : "") + fmtMoney(gain);
+    gainEl.className = "metric-value " + (gain >= 0 ? "positive" : "negative");
 
-  // Update Summary
-  document.getElementById('totalCost').textContent = '$' + totalCost.toLocaleString(undefined, {minimumFractionDigits: 2});
-  document.getElementById('totalValue').textContent = '$' + totalValue.toLocaleString(undefined, {minimumFractionDigits: 2});
-  
-  const totalGain = totalValue - totalCost;
-  const totalGainEl = document.getElementById('totalGain');
-  totalGainEl.textContent = (totalGain >= 0 ? '+' : '') + '$' + totalGain.toLocaleString(undefined, {minimumFractionDigits: 2});
-  totalGainEl.style.color = totalGain >= 0 ? '#155724' : '#721c24';
+    const retEl = document.getElementById('resReturn');
+    retEl.textContent = (totalReturnPct * 100).toFixed(2) + "%";
+    retEl.className = "metric-value " + (totalReturnPct >= 0 ? "positive" : "negative");
+
+    document.getElementById('resCAGR').textContent = (cagr * 100).toFixed(2) + "%";
 }
 
-// Initial Render
-render();
+function fmtMoney(num) {
+    return "$" + num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Initial Run
+calculate();
 
 </script>
 </body>
