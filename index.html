@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Stock Portfolio Tracker – Alpha Vantage Edition (No Errors)</title>
+<title>Stock Portfolio Tracker – Unlimited FMP Edition (No Rate Limits)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.7/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
@@ -18,13 +18,13 @@
   #summary { margin-top:30px; padding:25px; background:#d4edda; border-radius:12px; text-align:center; font-size:1.5em; font-weight:bold; }
   .loading { color:#ffc107; }
   .error { color:#dc3545; }
-  #apiNote { text-align:center; color:#6c757d; margin:10px 0; }
+  #apiNote { text-align:center; color:#6c757d; margin:10px 0; font-style:italic; }
 </style>
 </head>
 <body>
 
 <h1>My Stock Portfolio Tracker (up to 10 stocks)</h1>
-<div id="apiNote">Using free Alpha Vantage API (get your key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a>)</div>
+<div id="apiNote">Using free Financial Modeling Prep API (unlimited calls, no key needed)</div>
 
 <div style="text-align:center; margin:25px 0;">
   <button id="addStock">+ Add Stock</button>
@@ -58,10 +58,9 @@
 </div>
 
 <script>
-// Replace with your free Alpha Vantage API key
-const API_KEY = "P791QKULY2Z3V5RT";  // ← Get at https://www.alphavantage.co/support/#api-key
+// FMP API – Unlimited free tier, batch quotes for efficiency
+const FMP_BASE = "https://financialmodelingprep.com/api/v3";
 
-const BASE_URL = "https://www.alphavantage.co/query";
 const tbody = document.querySelector("#portfolioTable tbody");
 const addBtn = document.getElementById("addStock");
 const evalDateInput = document.getElementById("evalDate");
@@ -109,50 +108,43 @@ function addRow() {
 addBtn.onclick = addRow;
 evalDateInput.onchange = refresh;
 
-async function fetchPrice(ticker, isHistorical = false) {
+async function fetchPrices(tickers, isHistorical = false) {
+  if (tickers.length === 0) return {};
   try {
+    let endpoint = isHistorical ? "/historical-price-full" : "/quote";
+    const params = isHistorical ? { symbol: tickers[0], from: "2020-01-01", to: evalDateInput.value || dayjs().format("YYYY-MM-DD") } : { symbols: tickers.join(",") };
+    const { data } = await axios.get(`${FMP_BASE}${endpoint}`, { params });
     if (isHistorical) {
-      const date = evalDateInput.value;
-      const params = {
-        function: "TIME_SERIES_DAILY",
-        symbol: ticker,
-        apikey: API_KEY,
-        outputsize: "compact"  // Last 100 days for speed
-      };
-      const { data } = await axios.get(BASE_URL, { params });
-      if (data["Time Series (Daily)"]) {
-        // Find closest date <= evalDate
-        const timeSeries = data["Time Series (Daily)"];
-        let closestPrice = null;
-        let minDiff = Infinity;
-        for (const [tsDate, values] of Object.entries(timeSeries)) {
-          const tsDay = dayjs(tsDate);
-          if (tsDay.isBefore(dayjs(date)) || tsDay.isSame(date)) {
-            const diff = Math.abs(tsDay.diff(dayjs(date), 'day'));
-            if (diff < minDiff) {
-              minDiff = diff;
-              closestPrice = parseFloat(values["4. close"]);
-            }
+      // Single ticker historical
+      const histData = data.historical || [];
+      const targetDate = dayjs(evalDateInput.value || row.querySelector(".purchaseDate").value);
+      let closestPrice = null;
+      let minDiff = Infinity;
+      for (const day of histData) {
+        const dayDate = dayjs(day.date);
+        if (dayDate.isBefore(targetDate) || dayDate.isSame(targetDate)) {
+          const diff = Math.abs(dayDate.diff(targetDate, 'day'));
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestPrice = parseFloat(day.close);
           }
         }
-        return closestPrice;
       }
+      return closestPrice;
     } else {
-      // Current price
-      const params = {
-        function: "GLOBAL_QUOTE",
-        symbol: ticker,
-        apikey: API_KEY
-      };
-      const { data } = await axios.get(BASE_URL, { params });
-      if (data["Global Quote"]) {
-        return parseFloat(data["Global Quote"]["05. price"]);
-      }
+      // Batch current prices
+      const priceMap = {};
+      data.forEach(q => {
+        if (q.symbol && !isNaN(q.price)) {
+          priceMap[q.symbol] = parseFloat(q.price);
+        }
+      });
+      return priceMap;
     }
   } catch (err) {
-    console.error(`Error fetching ${ticker}:`, err);
+    console.error("FMP fetch error:", err);
+    return isHistorical ? null : {};
   }
-  return null;
 }
 
 async function refresh() {
@@ -174,20 +166,16 @@ async function refresh() {
     return;
   }
 
-  // Fetch current prices for all (Alpha Vantage limits 1 call/symbol, so parallel)
-  const pricePromises = tickers.map(async ticker => {
-    const priceNow = await fetchPrice(ticker);
-    return { ticker, priceNow };
-  });
-  const prices = await Promise.all(pricePromises);
+  // Batch fetch current prices (one call for all tickers)
+  const priceMap = await fetchPrices(tickers);
 
   for (const row of rows) {
     const ticker = row.querySelector(".ticker").value.trim().toUpperCase();
     const shares = parseFloat(row.querySelector(".shares").value) || 0;
     if (!ticker || shares <= 0) continue;
 
-    const { priceNow } = prices.find(p => p.ticker === ticker) || { priceNow: null };
-    if (priceNow === null) {
+    const priceNow = priceMap[ticker];
+    if (priceNow === undefined) {
       row.querySelector(".currentPrice").textContent = "Error";
       row.querySelector(".currentPrice").classList.add("error");
       continue;
@@ -201,11 +189,14 @@ async function refresh() {
     const manualPrice = parseFloat(row.querySelector(".price").value);
     if (manualPrice > 0) {
       costBasis = manualPrice * shares;
-    } else if (row.querySelector(".purchaseDate").value) {
-      const priceAtDate = await fetchPrice(ticker, true);
-      if (priceAtDate) {
-        costBasis = priceAtDate * shares;
-        row.querySelector(".price").value = priceAtDate.toFixed(2);
+    } else {
+      const purchaseDate = row.querySelector(".purchaseDate").value;
+      if (purchaseDate) {
+        const priceAtDate = await fetchPrices([ticker], true);
+        if (priceAtDate) {
+          costBasis = priceAtDate * shares;
+          row.querySelector(".price").value = priceAtDate.toFixed(2);
+        }
       }
     }
 
