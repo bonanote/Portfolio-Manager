@@ -36,7 +36,8 @@
   .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
   .btn-primary { background: #007bff; color: white; }
   .btn-outline { background: transparent; border: 1px solid #ccc; color: #666; margin-top: 10px; }
-  .btn:hover { opacity: 0.9; }
+  .btn-magic { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+  .btn:hover { opacity: 0.9; transform: translateY(-1px); }
 
   /* Results Panel */
   .results-header { font-size: 18px; font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
@@ -67,16 +68,7 @@
   
   <!-- LEFT COLUMN: INPUTS -->
   <div class="card">
-    <!-- API Key (Optional) -->
-    <div style="background:#fff3cd; padding:10px; border-radius:6px; margin-bottom:20px; border:1px solid #ffeeba;">
-      <label style="margin-bottom:0;">API Key (Optional for Auto-Fetch)</label>
-      <div style="display:flex; gap:5px; margin-top:5px;">
-        <input type="text" id="apiKey" placeholder="Paste FMP Key Here" style="font-size:13px; padding:6px;">
-        <button onclick="saveKey()" style="width:auto; padding:0 15px; font-size:13px; cursor:pointer;">Save</button>
-      </div>
-      <div id="apiStatus" style="color:#856404;">Enter key to attempt auto-filling prices.</div>
-    </div>
-
+    
     <div class="input-group">
       <label>Stock Ticker</label>
       <div style="display:flex; align-items:center;">
@@ -102,7 +94,6 @@
           <input type="number" id="price1" placeholder="Start Price" step="0.01">
         </div>
       </div>
-      <small style="color:#999; font-size:11px;">Select date to auto-fetch, or type price manually.</small>
     </div>
 
     <!-- DATE 2 (END) -->
@@ -115,11 +106,23 @@
           <input type="number" id="price2" placeholder="End Price" step="0.01">
         </div>
       </div>
-      <small style="color:#999; font-size:11px;">Defaults to Today.</small>
     </div>
 
-    <button class="btn btn-primary" id="calcBtn" onclick="calculate()">Recalculate</button>
-    <button class="btn btn-outline" onclick="fetchData()">Attempt Auto-Fetch Prices</button>
+    <div id="apiStatus"></div>
+
+    <button class="btn btn-magic" onclick="fetchYahooNoKey()">✨ Magic No-Key Fetch (Yahoo)</button>
+    
+    <!-- Collapsible Advanced API Option -->
+    <details style="margin-top:20px; font-size:12px; color:#666;">
+        <summary style="cursor:pointer; padding:5px;">Advanced: Use FMP API Key (Faster)</summary>
+        <div style="background:#fff3cd; padding:10px; border-radius:6px; margin-top:10px; border:1px solid #ffeeba;">
+            <input type="text" id="apiKey" placeholder="Paste FMP Key Here" style="font-size:13px; padding:6px; width:100%; box-sizing:border-box;">
+            <button onclick="saveKey()" style="margin-top:5px; padding:5px 10px; cursor:pointer;">Save Key</button>
+            <button onclick="fetchData()" style="margin-top:5px; padding:5px 10px; cursor:pointer;">Fetch with Key</button>
+        </div>
+    </details>
+
+    <button class="btn btn-primary" style="margin-top:15px;" id="calcBtn" onclick="calculate()">Recalculate Results</button>
   </div>
 
   <!-- RIGHT COLUMN: RESULTS -->
@@ -158,7 +161,6 @@
 </div>
 
 <script>
-const FMP_BASE = "https://financialmodelingprep.com/api/v3";
 // Elements
 const els = {
   key: document.getElementById('apiKey'),
@@ -189,110 +191,137 @@ els.ticker.addEventListener('input', () => {
 
 function saveKey() {
     localStorage.setItem('fmp_key', els.key.value.trim());
-    els.status.textContent = "Key Saved!";
-    els.status.style.color = "green";
-    setTimeout(() => els.status.textContent = "", 2000);
+    alert("Key Saved");
 }
 
-// --- API FETCH LOGIC ---
-async function fetchData() {
-    const key = els.key.value.trim();
+function updateStatus(msg, color) {
+    els.status.innerHTML = `<span style="color:${color}">${msg}</span>`;
+}
+
+// --- YAHOO NO-KEY FETCH (VIA PROXY) ---
+async function fetchYahooNoKey() {
     const ticker = els.ticker.value.toUpperCase();
+    if(!ticker) { alert("Please enter a ticker"); return; }
     
-    if(!key) {
-        alert("Please enter an API Key to use auto-fetch.");
-        return;
-    }
-    if(!ticker) {
-        alert("Enter a ticker symbol.");
-        return;
-    }
-
-    els.status.textContent = "Fetching data...";
-    els.status.style.color = "blue";
-
+    updateStatus("Contacting Yahoo Finance via Proxy...", "blue");
+    
     try {
-        // Fetch Date 1 (Historical)
+        // We request 10 years of data to ensure we cover the start date
+        // URL is passed to corsproxy.io to bypass browser security
+        const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=20y`;
+        const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(targetUrl);
+        
+        const res = await fetch(proxyUrl);
+        if(!res.ok) throw new Error("Yahoo/Proxy Connection Failed");
+        
+        const json = await res.json();
+        const result = json.chart.result?.[0];
+        
+        if(!result) throw new Error("No data found for this ticker");
+        
+        const timestamps = result.timestamp; // Unix seconds
+        const quotes = result.indicators.quote[0].close;
+        
+        // Helper to find price
+        const findPrice = (dateStr) => {
+            const targetTime = dayjs(dateStr).unix();
+            let closestPrice = null;
+            let minDiff = Infinity;
+            
+            // Loop backwards (more efficient for recent dates)
+            for(let i = timestamps.length - 1; i >= 0; i--) {
+                const diff = Math.abs(timestamps[i] - targetTime);
+                
+                // If we are within 4 days (covers weekends/holidays)
+                if(diff < 345600) { 
+                    if(diff < minDiff) {
+                        minDiff = diff;
+                        closestPrice = quotes[i];
+                    }
+                }
+                // Optimization: if we went too far back past target, stop
+                if(timestamps[i] < targetTime - 400000) break;
+            }
+            return closestPrice;
+        };
+
+        // 1. Get Start Price
         if(els.d1.value) {
-            const p1 = await getPriceAtDate(ticker, els.d1.value, key);
+            const p1 = findPrice(els.d1.value);
             if(p1) {
-                els.p1.value = p1;
-                // Add a visual flash to show it updated
-                els.p1.style.backgroundColor = "#d4edda";
-                setTimeout(() => els.p1.style.backgroundColor = "", 1000);
+                els.p1.value = p1.toFixed(2);
+                highlight(els.p1);
             }
         }
 
-        // Fetch Date 2 (Historical or Current)
+        // 2. Get End Price
         if(els.d2.value) {
-            const isToday = dayjs(els.d2.value).isSame(dayjs(), 'day');
-            let p2;
-            
-            if(isToday) {
-                // Use quote-short for today
-                const res = await fetch(`${FMP_BASE}/quote-short/${ticker}?apikey=${key}`);
-                const data = await res.json();
-                if(data && data[0]) p2 = data[0].price;
-            } else {
-                // Use historical
-                p2 = await getPriceAtDate(ticker, els.d2.value, key);
-            }
-
+            const p2 = findPrice(els.d2.value);
             if(p2) {
-                els.p2.value = p2;
-                els.p2.style.backgroundColor = "#d4edda";
-                setTimeout(() => els.p2.style.backgroundColor = "", 1000);
+                els.p2.value = p2.toFixed(2);
+                highlight(els.p2);
             }
         }
         
-        els.status.textContent = "Fetch complete.";
-        els.status.style.color = "green";
+        updateStatus("Success! Prices updated from Yahoo.", "green");
         calculate();
 
-    } catch(e) {
-        console.error(e);
-        els.status.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
-        if(e.message.includes("403") || e.message.includes("Legacy")) {
-            alert("API Restriction Detected: You may need to enter prices manually for historical dates if your plan doesn't support them.");
-        }
+    } catch(err) {
+        console.error(err);
+        updateStatus("Fetch failed. Try manual entry or check network.", "red");
+        alert("Could not fetch from Yahoo.\n\nNote: Public proxies sometimes get overloaded. If this persists, please use the manual entry boxes.");
     }
 }
 
-async function getPriceAtDate(ticker, dateStr, key) {
-    // FMP Historical Endpoint
-    // We fetch a range around the date to ensure we find a trading day
+// --- FMP API FETCH (OPTIONAL) ---
+async function fetchData() {
+    const key = els.key.value.trim();
+    const ticker = els.ticker.value.toUpperCase();
+    if(!key) { alert("API Key required for this method."); return; }
+
+    updateStatus("Fetching from FMP API...", "blue");
+
+    try {
+        if(els.d1.value) {
+            const p1 = await getFMPPrice(ticker, els.d1.value, key);
+            if(p1) { els.p1.value = p1; highlight(els.p1); }
+        }
+        if(els.d2.value) {
+            const p2 = await getFMPPrice(ticker, els.d2.value, key);
+            if(p2) { els.p2.value = p2; highlight(els.p2); }
+        }
+        updateStatus("FMP Fetch Complete.", "green");
+        calculate();
+    } catch(e) {
+        console.error(e);
+        updateStatus("FMP Error: " + e.message, "red");
+    }
+}
+
+async function getFMPPrice(ticker, dateStr, key) {
     const from = dayjs(dateStr).subtract(4, 'day').format("YYYY-MM-DD");
     const to = dayjs(dateStr).add(4, 'day').format("YYYY-MM-DD");
-    
-    const url = `${FMP_BASE}/historical-price-full/${ticker}?from=${from}&to=${to}&apikey=${key}`;
+    const url = `https://financialmodelingprep.com/api/v3/historical-price-full/${ticker}?from=${from}&to=${to}&apikey=${key}`;
     const res = await fetch(url);
-    
-    if(!res.ok) {
-        if(res.status === 403) throw new Error("403 Forbidden (Plan Limit)");
-        throw new Error(`HTTP ${res.status}`);
-    }
-    
     const data = await res.json();
     if(data["Error Message"]) throw new Error(data["Error Message"]);
-    
     const hist = data.historical || [];
     if(hist.length === 0) return null;
-
-    // Find closest date in result
+    
+    // Find closest
     const target = dayjs(dateStr);
     let closest = null;
     let minDiff = Infinity;
-
     hist.forEach(day => {
-        const d = dayjs(day.date);
-        const diff = Math.abs(d.diff(target, 'day'));
-        if(diff < minDiff) {
-            minDiff = diff;
-            closest = day.close; // 'close' or 'adjClose'
-        }
+        const diff = Math.abs(dayjs(day.date).diff(target, 'day'));
+        if(diff < minDiff) { minDiff = diff; closest = day.close; }
     });
-
     return closest;
+}
+
+function highlight(el) {
+    el.style.backgroundColor = "#d4edda";
+    setTimeout(() => el.style.backgroundColor = "", 1000);
 }
 
 // --- CALCULATION LOGIC ---
@@ -303,25 +332,19 @@ function calculate() {
     const d1 = dayjs(els.d1.value);
     const d2 = dayjs(els.d2.value);
 
-    // Basic Maths
     const initialVal = shares * p1;
     const finalVal = shares * p2;
     const gain = finalVal - initialVal;
     
-    // Time Diff
     const diffDays = d2.diff(d1, 'day');
     const years = diffDays / 365.25;
-
-    // Returns
     const totalReturnPct = initialVal > 0 ? (gain / initialVal) : 0;
     
-    // CAGR: (End/Start)^(1/years) - 1
     let cagr = 0;
-    if(initialVal > 0 && finalVal > 0 && years > 0) {
+    if(initialVal > 0 && finalVal > 0 && years > 0.1) {
         cagr = Math.pow((finalVal / initialVal), (1 / years)) - 1;
     }
 
-    // --- UI UPDATES ---
     document.getElementById('resInitial').textContent = fmtMoney(initialVal);
     document.getElementById('resFinal').textContent = fmtMoney(finalVal);
     document.getElementById('resYears').textContent = `${years.toFixed(2)} Years`;
@@ -341,9 +364,7 @@ function fmtMoney(num) {
     return "$" + num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Initial Run
 calculate();
-
 </script>
 </body>
 </html>
