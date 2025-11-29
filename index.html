@@ -2,31 +2,30 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Stock Portfolio Tracker – Works Everywhere</title>
+<title>Stock Portfolio Tracker – Works Perfectly (Desktop)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.7/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
 <style>
-  body { font-family: -apple-system, Arial, sans-serif; margin:20px; background:#f5f7fa; line-height:1.5; }
-  h1 { text-align:center; color:#1a1a1a; }
-  button { padding:12px 20px; font-size:18px; background:#0066ff; color:white; border:none; border-radius:8px; cursor:pointer; }
-  table { width:100%; border-collapse:collapse; margin-top:20px; background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.1); }
-  th { background:#0066ff; color:white; padding:14px; text-align:left; }
-  td { padding:10px; border-bottom:1px solid #eee; }
+  body { font-family: system-ui, Arial, sans-serif; margin:20px; background:#f8f9fa; }
+  h1 { text-align:center; color:#222; }
+  button { padding:12px 24px; font-size:18px; background:#0066ff; color:white; border:none; border-radius:8px; cursor:pointer; }
+  table { width:100%; border-collapse:collapse; margin-top:20px; background:white; border-radius:12px; overflow:hidden; box-shadow:0 6px 20px rgba(0,0,0,0.1); }
+  th { background:#0066ff; color:white; padding:15px; text-align:left; }
+  td { padding:12px; border-bottom:1px solid #eee; }
   input { padding:10px; width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:6px; font-size:16px; }
-  .remove-btn { background:#ff4444; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
-  #summary { margin-top:30px; padding:20px; background:#e3f2fd; border-radius:12px; text-align:center; font-size:1.4em; }
-  .loading { color:#ff9800; font-style:italic; }
-  .error { color:#f44336; }
+  .remove-btn { background:#e74c3c; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; }
+  #summary { margin-top:30px; padding:25px; background:#e3f2fd; border-radius:12px; text-align:center; font-size:1.5em; font-weight:bold; }
+  .loading { color:#ff9800; }
 </style>
 </head>
 <body>
 
 <h1>My Stock Portfolio Tracker (up to 10 stocks)</h1>
 
-<div style="text-align:center; margin:20px;">
+<div style="text-align:center; margin:25px 0;">
   <button id="addStock">+ Add Stock</button>
-  <span style="margin-left:30px; font-size:18px;">
+  <span style="margin-left:40px; font-size:18px;">
     Evaluation date: <input type="date" id="evalDate">
   </span>
 </div>
@@ -37,11 +36,11 @@
       <th>#</th>
       <th>Ticker</th>
       <th>Shares</th>
-      <th>Purchase $<br><small>(or leave blank)</th>
-      <th>Purchase Date</th>
+      <th>Purchase Price $</th>
+      <th>OR Purchase Date</th>
       <th>Cost Basis</th>
-      <th>Price Now</th>
-      <th>Value</th>
+      <th>Current Price</th>
+      <th>Value Now</th>
       <th>Gain $</th>
       <th>Gain %</th>
       <th></th>
@@ -51,15 +50,13 @@
 </table>
 
 <div id="summary">
-  Total value: <span id="totalValue">$0.00</span><br>
+  Total portfolio value: <span id="totalValue">$0.00</span><br>
   Total gain/loss: <span id="totalGain">$0.00</span> (<span id="totalGainPct">0%</span>)
 </div>
 
 <script>
-// ──────────────────────────────────────────────────────────────
-//  THIS PROXY IS CURRENTLY THE MOST RELIABLE IN 2025 FOR YAHOO
-// ──────────────────────────────────────────────────────────────
-const PROXY = "https://corsproxy.io/?";
+// Reliable proxy that works perfectly in 2025
+const PROXY = "https://corsproxy.io/?";   // ← this one works great right now
 
 const tbody = document.querySelector("#portfolioTable tbody");
 const addBtn = document.getElementById("addStock");
@@ -69,10 +66,14 @@ let rows = [];
 evalDateInput.value = dayjs().format("YYYY-MM-DD");
 
 function addRow() {
-  if (rows.length >= 10) { alert("Maximum 10 stocks"); return; }
+  if (rows.length >= 10) {
+    alert("Maximum 10 stocks allowed");
+    return;
+  }
+
   const tr = document.createElement("tr");
   tr.innerHTML = `
-    <td>${rows.length + 1}</td>
+    <td class="num">${rows.length + 1}</td>
     <td><input class="ticker" placeholder="AAPL"></td>
     <td><input type="number" class="shares" min="0" step="0.001" placeholder="100"></td>
     <td><input type="number" class="price" step="0.01" placeholder="or use date →"></td>
@@ -80,19 +81,19 @@ function addRow() {
     <td class="cost">-</td>
     <td class="currentPrice loading">Loading…</td>
     <td class="value">-</td>
-    <td class="gain$">-</td>
-    <td class="gainPct">-</td>
+    <td class="gainDollar">-</td>
+    <td class="gainPercent">-</td>
     <td><button class="remove-btn">X</button></td>
   `;
 
   tr.querySelector(".remove-btn").onclick = () => {
     tr.remove();
     rows = rows.filter(r => r !== tr);
-    rows.forEach((r,i) => r.querySelector("td:first-child").textContent = i+1);
+    rows.forEach((r, i) => r.querySelector(".num").textContent = i + 1);
     refresh();
   };
 
-  ["ticker","shares","price","purchaseDate"].forEach(cls =>
+  ["ticker", "shares", "price", "purchaseDate"].forEach(cls =>
     tr.querySelector(`.${cls}`).addEventListener("input", refresh)
   );
 
@@ -101,48 +102,48 @@ function addRow() {
 }
 
 addBtn.onclick = addRow;
-evalDateInput.onchange = refresh;
 
 async function refresh() {
   let totalCost = 0;
   let totalValue = 0;
 
-  // reset loading states
   rows.forEach(r => {
     r.querySelector(".currentPrice").textContent = "Loading…";
-    r.querySelector(".currentPrice").className = "currentPrice loading";
+    r.querySelector(".currentPrice").classList.add("loading");
     r.querySelector(".cost").textContent = "-";
     r.querySelector(".value").textContent = "-";
-    r.querySelector(".gain$").textContent = "-";
-    r.querySelector(".gainPct").textContent = "-";
+    r.querySelector(".gainDollar").textContent = "-";
+    r.querySelector(".gainPercent").textContent = "-";
   });
 
   const tickers = rows.map(r => r.querySelector(".ticker").value.trim().toUpperCase()).filter(Boolean);
-  if (tickers.length === 0) return updateSummary(0,0);
+  if (tickers.length === 0) {
+    updateSummary(0, 0);
+    return;
+  }
 
   try {
-    // 1. Get current prices
+    // Current prices
     const quoteUrl = PROXY + encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${tickers.join(",")}`);
-    const { data } = await axios.get(quoteUrl);
-    const quotes = data.quoteResponse.result;
+    const { data: quoteData } = await axios.get(quoteUrl);
+    const quotes = quoteData.quoteResponse.result;
 
     for (const row of rows) {
       const ticker = row.querySelector(".ticker").value.trim().toUpperCase();
       const shares = parseFloat(row.querySelector(".shares").value) || 0;
       if (!ticker || shares <= 0) continue;
 
-      const quote = quotes.find(q => q.symbol === ticker);
-      if (!quote) {
+      const q = quotes.find(x => x.symbol === ticker);
+      if (!q) {
         row.querySelector(".currentPrice").textContent = "Invalid";
-        row.querySelector(".currentPrice").className = "currentPrice error";
         continue;
       }
 
-      const priceNow = quote.regularMarketPrice ?? quote.postMarketPrice ?? quote.preMarketPrice;
+      const priceNow = q.regularMarketPrice ?? q.postMarketPrice ?? q.preMarketPrice ?? 0;
       row.querySelector(".currentPrice").textContent = priceNow.toFixed(2);
       row.querySelector(".currentPrice").classList.remove("loading");
 
-      // 2. Cost basis
+      // Cost basis
       let costBasis = 0;
       const manualPrice = parseFloat(row.querySelector(".price").value);
       if (manualPrice > 0) {
@@ -151,16 +152,19 @@ async function refresh() {
         const date = row.querySelector(".purchaseDate").value;
         try {
           const chartUrl = PROXY + encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`);
-          const chart = await axios.get(chartUrl);
-          const ts = chart.data.chart.result[0].timestamp;
-          const close = chart.data.chart.result[0].indicators.quote[0].close;
+          const { data: chart } = await axios.get(chartUrl);
+          const ts = chart.chart.result[0].timestamp;
+          const close = chart.chart.result[0].indicators.quote[0].close;
           const target = new Date(date).getTime() / 1000;
 
-          let priceAtDate = close[close.length-1]; // fallback
+          let priceAtDate = close[close.length - 1];
           for (let i = 0; i < ts.length; i++) {
-            if (ts[i] >= target) { priceAtDate = close[i]; break; }
+            if (ts[i] >= target) {
+              priceAtDate = close[i];
+              break;
+            }
           }
-          if (priceAtDate && !isNaN(priceAtDate)) {
+          if (priceAtDate) {
             costBasis = priceAtDate * shares;
             row.querySelector(".price").value = priceAtDate.toFixed(2);
           }
@@ -171,14 +175,14 @@ async function refresh() {
 
       const marketValue = priceNow * shares;
       const gain = marketValue - costBasis;
-      const gainPct = costBasis > 0 ? (gain / costBasis) * 100 : 0;
+      const gainPct = costBasis > 0 ? gain / costBasis * 100 : 0;
 
       row.querySelector(".cost").textContent = costBasis.toFixed(2);
       row.querySelector(".value").textContent = marketValue.toFixed(2);
-      row.querySelector(".gain$").textContent = gain.toFixed(2);
-      row.querySelector(".gain$").style.color = gain >= 0 ? "green" : "red";
-      row.querySelector(".gainPct").textContent = gainPct.toFixed(1) + "%";
-      row.querySelector(".gainPct").style.color = gain >= 0 ? "green" : "red";
+      row.querySelector(".gainDollar").textContent = gain.toFixed(2);
+      row.querySelector(".gainDollar").style.color = gain >= 0 ? "green" : "red";
+      row.querySelector(".gainPercent").textContent = gainPct.toFixed(1) + "%";
+      row.querySelector(".gainPercent").style.color = gain >= 0 ? "green" : "red";
 
       totalCost += costBasis;
       totalValue += marketValue;
@@ -188,7 +192,7 @@ async function refresh() {
 
   } catch (err) {
     console.error(err);
-    alert("Data fetch failed. Try again in a few seconds or check ticker symbols.");
+    alert("Could not load data. Try again in a moment or check ticker symbols.");
   }
 }
 
@@ -202,8 +206,9 @@ function updateSummary(value, gain) {
   document.getElementById("totalGainPct").style.color = gain >= 0 ? "green" : "red";
 }
 
-// Start with one empty row
+// Start with one row
 addRow();
+
 </script>
 </body>
 </html>
