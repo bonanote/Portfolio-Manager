@@ -1,143 +1,244 @@
-<script>
-  const tbody = document.querySelector("#portfolioTable tbody");
-  const addBtn = document.getElementById("addStock");
-  const evalDateInput = document.getElementById("evalDate");
-  let stockRows = [];
-  let totalCost = 0;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Simple Stock Portfolio Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.7/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f8f9fa; }
+    h1 { text-align: center; color: #333; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+    th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+    th { background: #007bff; color: white; }
+    input, button, select { padding: 6px; margin: 4px; }
+    .stock-row { background: #f2f2f2; }
+    .remove-btn { background: red; color: white; border: none; cursor: pointer; }
+    #summary { margin-top: 30px; padding: 15px; background: #e9ecef; border-radius: 8px; font-size: 1.2em; }
+    .loading { color: orange; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
 
-  // FIXED: Use AllOrigins proxy for CORS bypass
-  const API_PROXY = "https://api.allorigins.win/raw?url=";
+  <h1>My Stock Portfolio Tracker (Up to 10 stocks)</h1>
 
-  evalDateInput.value = dayjs().format("YYYY-MM-DD");
+  <button id="addStock">+ Add Stock</button>
+  <label style="margin-left: 20px;">Evaluation Date: 
+    <input type="date" id="evalDate" value=""/>
+  </label>
 
-  function createRow() {
-    if (stockRows.length >= 10) { alert("Max 10 stocks"); return; }
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${stockRows.length + 1}</td>
-      <td><input class="ticker" placeholder="AAPL" style="width:90px"></td>
-      <td><input type="number" class="shares" min="0" step="0.001" style="width:90px"></td>
-      <td><input type="number" class="price" step="0.01" placeholder="or date →"></td>
-      <td><input type="date" class="purchaseDate"></td>
-      <td class="cost">-</td>
-      <td class="currentPrice loading">Loading…</td>
-      <td class="marketValue">-</td>
-      <td class="gainDollar">-</td>
-      <td class="gainPct">-</td>
-      <td><button class="remove-btn">X</button></td>
-    `;
-    tr.querySelector(".remove-btn").onclick = () => {
-      tr.remove();
-      stockRows = stockRows.filter(r => r !== tr);
-      stockRows.forEach((r,i) => r.querySelector("td:first-child").textContent = i+1);
-      calculateAll();
+  <table id="portfolioTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Ticker</th>
+        <th>Shares</th>
+        <th>Purchase Price ($)</th>
+        <th>OR Purchase Date</th>
+        <th>Cost Basis ($)</th>
+        <th>Current Price ($)</th>
+        <th>Value @ Eval Date ($)</th>
+        <th>Gain/Loss ($)</th>
+        <th>Gain/Loss (%)</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="summary">
+    <strong>Total Portfolio Value (at selected date):</strong> <span id="totalValue">$0.00</span><br/>
+    <strong>Total Gain/Loss:</strong> <span id="totalGain">$0.00</span> 
+    (<span id="totalGainPct">0%</span>)
+  </div>
+
+  <script>
+    const tbody = document.querySelector("#portfolioTable tbody");
+    const addBtn = document.getElementById("addStock");
+    const evalDateInput = document.getElementById("evalDate");
+    let stockRows = [];
+
+    // Set default evaluation date to today
+    evalDateInput.value = dayjs().format("YYYY-MM-DD");
+
+    // Proxy to avoid CORS issues with yfinance
+    const API_PROXY = "https://api.allorigins.win/raw?url=";
+    const YAHOO_URL = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=";
+    const HISTORICAL_URL = ticker => 
+      `${API_PROXY}https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`;
+
+    function createRow(index) {
+      const tr = document.createElement("tr");
+      tr.className = "stock-row";
+      tr.innerHTML = `
+        <td>${index + 1}</td>
+        <td><input type="text" class="ticker" placeholder="e.g. AAPL" style="width:80px"/></td>
+        <td><input type="number" class="shares" min="0" step="0.001" style="width:80px"/></td>
+        <td><input type="number" class="price" min="0" step="0.01" placeholder="OR leave blank" style="width:100px"/></td>
+        <td><input type="date" class="purchaseDate" style="width:130px"/></td>
+        <td class="cost">-</td>
+        <td class="currentPrice">-</td>
+        <td class="marketValue">-</td>
+        <td class="gainDollar">-</td>
+        <td class="gainPct">-</td>
+        <td><button class="remove-btn">X</button></td>
+      `;
+      // Remove row
+      tr.querySelector(".remove-btn").onclick = () => {
+        tr.remove();
+        stockRows = stockRows.filter(r => r.tr !== tr);
+        updateNumbering();
+        calculateAll();
+      };
+
+      // Auto-fetch on any change
+      ["ticker","shares","price","purchaseDate"].forEach(cls => {
+        tr.querySelector(`.${cls}`).addEventListener("input", () => calculateAll());
+      });
+
+      tbody.appendChild(tr);
+      stockRows.push({ tr, index });
+      return tr;
+    }
+
+    function updateNumbering() {
+      stockRows.forEach((row, i) => {
+        row.tr.querySelector("td:first-child").textContent = i + 1;
+      });
+    }
+
+    addBtn.onclick = () => {
+      if (stockRows.length >= 10) {
+        alert("Maximum 10 stocks allowed");
+        return;
+      }
+      createRow(stockRows.length);
     };
-    ["ticker","shares","price","purchaseDate"].forEach(c => 
-      tr.querySelector(`.${c}`).addEventListener("input", calculateAll)
-    );
-    tbody.appendChild(tr);
-    stockRows.push(tr);
-  }
 
-  addBtn.onclick = createRow;
-  evalDateInput.onchange = calculateAll;
+    evalDateInput.addEventListener("change", calculateAll);
 
-  async function calculateAll() {
-    const evalDate = evalDateInput.value;
-    totalCost = 0;
-    let totalValue = 0;
+    async function calculateAll() {
+      const evalDate = evalDateInput.value || dayjs().format("YYYY-MM-DD");
+      const tickers = [];
 
-    stockRows.forEach(row => {
-      row.querySelector(".currentPrice").textContent = "Loading…";
-      row.querySelector(".currentPrice").className = "currentPrice loading";
-      row.querySelector(".cost").textContent = "-";
-      row.querySelector(".marketValue").textContent = "-";
-      row.querySelector(".gainDollar").textContent = "-";
-      row.querySelector(".gainPct").textContent = "-";
-    });
+      // Reset all rows
+      stockRows.forEach(row => {
+        row.tr.querySelector(".cost").textContent = "-";
+        row.tr.querySelector(".currentPrice").textContent = "-";
+        row.tr.querySelector(".marketValue").textContent = "-";
+        row.tr.querySelector(".gainDollar").textContent = "-";
+        row.tr.querySelector(".gainPct").textContent = "-";
+        row.tr.querySelector(".currentPrice").className = "currentPrice loading";
+        row.tr.querySelector(".currentPrice").textContent = "Loading...";
+      });
 
-    const tickers = stockRows
-      .map(r => r.querySelector(".ticker").value.trim().toUpperCase())
-      .filter(Boolean);
-
-    if (!tickers.length) return updateSummary(0,0);
-
-    try {
-      // FIXED: Proxy + encodeURIComponent for quotes
-      const quoteUrl = API_PROXY + encodeURIComponent("https://query1.finance.yahoo.com/v7/finance/quote?symbols=" + tickers.join(","));
-      const quoteResp = await axios.get(quoteUrl);
-      const quotes = quoteResp.data.quoteResponse.result;
-
-      for (let row of stockRows) {
-        const ticker = row.querySelector(".ticker").value.trim().toUpperCase();
-        const shares = parseFloat(row.querySelector(".shares").value) || 0;
-        if (!ticker || shares <= 0) continue;
-
-        const q = quotes.find(x => x.symbol === ticker);
-        if (!q) { row.querySelector(".currentPrice").textContent = "Invalid"; continue; }
-
-        const priceNow = q.regularMarketPrice || q.postMarketPrice || q.preMarketPrice;
-        row.querySelector(".currentPrice").textContent = priceNow.toFixed(2);
-        row.querySelector(".currentPrice").classList.remove("loading");
-
-        // Cost basis
-        let cost = 0;
-        const manualPrice = parseFloat(row.querySelector(".price").value);
-        if (manualPrice > 0) {
-          cost = manualPrice * shares;
-        } else {
-          const purchaseDate = row.querySelector(".purchaseDate").value;
-          if (purchaseDate) {
-            try {
-              // FIXED: Proxy + encodeURIComponent for historical
-              const histUrl = API_PROXY + encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`);
-              const histRes = await axios.get(histUrl);
-              const ts = histRes.data.chart.result[0].timestamp;
-              const close = histRes.data.chart.result[0].indicators.quote[0].close;
-              const target = new Date(purchaseDate).getTime() / 1000;
-              let bestIdx = ts.findIndex(t => t >= target);
-              let best = (bestIdx !== -1 ? close[bestIdx] : close[close.length - 1]) || priceNow;
-              cost = best * shares;
-              row.querySelector(".price").value = best.toFixed(2);
-            } catch(e) { 
-              console.error("Historical fetch failed:", e);
-              row.querySelector(".purchaseDate").style.borderColor = "red";
-            }
-          }
-        }
-
-        const value = priceNow * shares;
-        const gain$ = value - cost;
-        const gainPct = cost > 0 ? (gain$ / cost) * 100 : 0;
-
-        row.querySelector(".cost").textContent = cost.toFixed(2);
-        row.querySelector(".marketValue").textContent = value.toFixed(2);
-        row.querySelector(".gainDollar").textContent = gain$.toFixed(2);
-        row.querySelector(".gainDollar").style.color = gain$ >= 0 ? "green" : "red";
-        row.querySelector(".gainPct").textContent = gainPct.toFixed(1) + "%";
-        row.querySelector(".gainPct").style.color = gain$ >= 0 ? "green" : "red";
-
-        totalCost += cost;
-        totalValue += value;
+      // Collect valid tickers
+      for (const row of stockRows) {
+        const tickerInput = row.tr.querySelector(".ticker");
+        const ticker = tickerInput.value.trim().toUpperCase();
+        if (ticker) tickers.push({ ticker, row });
       }
 
-      updateSummary(totalValue, totalValue - totalCost);
-    } catch (e) {
-      console.error("Fetch error:", e);
-      alert("Fetch failed (CORS or network issue). Try a different browser or check console for details.");
+      if (tickers.length === 0) {
+        updateSummary(0, 0);
+        return;
+      }
+
+      // Fetch current prices + historical data in one go
+      const tickerList = tickers.map(t => t.ticker).join(",");
+      try {
+        const quoteRes = await axios.get(YAHOO_URL + tickerList);
+        const quotes = quoteRes.data.quoteResponse.result;
+
+        let totalCost = 0;
+        let totalValue = 0;
+
+        for (const { ticker, row } of tickers) {
+          const quote = quotes.find(q => q.symbol === ticker);
+          if (!quote) {
+            row.tr.querySelector(".currentPrice").textContent = "Not found";
+            row.tr.querySelector(".currentPrice").className = "currentPrice error";
+            continue;
+          }
+
+          const currentPrice = quote.regularMarketPrice || quote.postMarketPrice || quote.preMarketPrice;
+          row.tr.querySelector(".currentPrice").textContent = currentPrice.toFixed(2);
+          row.tr.querySelector(".currentPrice").classList.remove("loading");
+
+          const shares = parseFloat(row.tr.querySelector(".shares").value) || 0;
+          if (shares <= 0) continue;
+
+          // Determine cost basis
+          let costBasis = 0;
+          const priceInput = parseFloat(row.tr.querySelector(".price").value);
+          const purchaseDate = row.tr.querySelector(".purchaseDate").value;
+
+          if (!isNaN(priceInput) && priceInput > 0) {
+            costBasis = priceInput * shares;
+          } else if (purchaseDate) {
+            // Fetch historical price
+            try {
+              const histRes = await axios.get(HISTORICAL_URL(ticker));
+              const timestamps = histRes.data.chart.result[0].timestamp;
+              const closes = histRes.data.chart.result[0].indicators.quote[0].close;
+
+              const targetTs = new Date(purchaseDate).getTime() / 1000;
+              let closestPrice = null;
+              let minDiff = Infinity;
+
+              for (let i = 0; i < timestamps.length; i++) {
+                const diff = Math.abs(timestamps[i] - targetTs);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  closestPrice = closes[i];
+                }
+              }
+
+              if (closestPrice) {
+                costBasis = closestPrice * shares;
+                // Optionally show the fetched price
+                row.tr.querySelector(".price").value = closestPrice.toFixed(2);
+              }
+            } catch (e) {
+              row.tr.querySelector(".purchaseDate").style.borderColor = "red";
+            }
+          }
+
+          const marketValue = currentPrice * shares;
+          const gainDollar = marketValue - costBasis;
+          const gainPct = costBasis > 0 ? (gainDollar / costBasis) * 100 : 0;
+
+          row.tr.querySelector(".cost").textContent = costBasis.toFixed(2);
+          row.tr.querySelector(".marketValue").textContent = marketValue.toFixed(2);
+          row.tr.querySelector(".gainDollar").textContent = gainDollar.toFixed(2);
+          row.tr.querySelector(".gainDollar").style.color = gainDollar >= 0 ? "green" : "red";
+          row.tr.querySelector(".gainPct").textContent = gainPct.toFixed(2) + "%";
+          row.tr.querySelector(".gainPct").style.color = gainDollar >= 0 ? "green" : "red";
+
+          totalCost += costBasis;
+          totalValue += marketValue;
+        }
+
+        updateSummary(totalValue, totalValue - totalCost);
+      } catch (err) {
+        console.error(err);
+        alert("Error fetching data. Try again or check ticker symbols.");
+      }
     }
-  }
 
-  function updateSummary(val, gain) {
-    document.getElementById("totalValue").textContent = "$" + val.toFixed(2);
-    const gainStr = (gain >= 0 ? "+" : "") + "$" + gain.toFixed(2);
-    const gainPctStr = totalCost > 0 ? (gain / totalCost * 100).toFixed(1) + "%" : "–%";
-    document.getElementById("totalGain").innerHTML = gainStr;
-    document.getElementById("totalGain").style.color = gain >= 0 ? "green" : "red";
-    document.getElementById("totalGainPct").textContent = gainPctStr;
-    document.getElementById("totalGainPct").style.color = gain >= 0 ? "green" : "red";
-  }
+    function updateSummary(totalValue, totalGain) {
+      const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
+      document.getElementById("totalValue").textContent = "$" + totalValue.toFixed(2);
+      document.getElementById("totalGain").textContent = "$" + totalGain.toFixed(2);
+      document.getElementById("totalGain").style.color = totalGain >= 0 ? "green" : "red";
+      document.getElementById("totalGainPct").textContent = totalGainPct.toFixed(2) + "%";
+      document.getElementById("totalGainPct").style.color = totalGain >= 0 ? "green" : "red";
+    }
 
-  // Start with one empty row
-  createRow();
-</script>
+    // Add first row on load
+    createRow(0);
+  </script>
+</body>
+</html>
