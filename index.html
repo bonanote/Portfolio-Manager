@@ -2,234 +2,389 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Stock Portfolio Tracker – Unlimited FMP Edition (No Rate Limits)</title>
+<title>Stock Portfolio Tracker – Fixed Version</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.7/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
 <style>
-  body { font-family: system-ui, Arial, sans-serif; margin:20px; background:#f8f9fa; }
-  h1 { text-align:center; color:#222; }
-  button { padding:12px 24px; font-size:18px; background:#28a745; color:white; border:none; border-radius:8px; cursor:pointer; }
-  table { width:100%; border-collapse:collapse; margin-top:20px; background:white; border-radius:12px; overflow:hidden; box-shadow:0 6px 20px rgba(0,0,0,0.1); }
-  th { background:#28a745; color:white; padding:15px; text-align:left; }
-  td { padding:12px; border-bottom:1px solid #eee; }
-  input { padding:10px; width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:6px; font-size:16px; }
-  .remove-btn { background:#dc3545; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; }
-  #summary { margin-top:30px; padding:25px; background:#d4edda; border-radius:12px; text-align:center; font-size:1.5em; font-weight:bold; }
-  .loading { color:#ffc107; }
-  .error { color:#dc3545; }
-  #apiNote { text-align:center; color:#6c757d; margin:10px 0; font-style:italic; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 20px; background: #f0f2f5; color: #333; }
+  h1 { text-align: center; color: #1a1a1a; margin-bottom: 10px; }
+  
+  /* Controls Section */
+  .controls {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  button { padding: 10px 20px; font-size: 16px; border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.2s; }
+  button:hover { opacity: 0.9; }
+  #addStock { background: #007bff; color: white; }
+  
+  .api-box { display: flex; align-items: center; gap: 10px; background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffeeba; }
+  .api-box input { width: 200px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+  .api-box small { color: #856404; font-size: 12px; }
+
+  /* Table Styles */
+  .table-container { overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  table { width: 100%; border-collapse: collapse; min-width: 900px; }
+  th { background: #343a40; color: white; padding: 15px; text-align: left; font-weight: 600; font-size: 14px; }
+  td { padding: 12px 15px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  
+  input.table-input { padding: 8px; width: 100%; box-sizing: border-box; border: 1px solid #dfe1e5; border-radius: 4px; transition: border 0.2s; }
+  input.table-input:focus { border-color: #007bff; outline: none; }
+  
+  .remove-btn { background: #ff4d4f; color: white; padding: 6px 12px; font-size: 14px; }
+  
+  /* Summary Box */
+  #summary { margin-top: 20px; padding: 25px; background: white; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; }
+  .summary-item { display: flex; flex-direction: column; }
+  .summary-label { font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  .summary-val { font-size: 24px; font-weight: bold; }
+  
+  /* Utility Classes */
+  .loading { color: #f39c12; font-style: italic; }
+  .error { color: #dc3545; font-weight: bold; }
+  .positive { color: #28a745; font-weight: bold; }
+  .negative { color: #dc3545; font-weight: bold; }
+  .mock-badge { background: #6c757d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; vertical-align: middle; margin-left: 5px; }
 </style>
 </head>
 <body>
 
-<h1>My Stock Portfolio Tracker (up to 10 stocks)</h1>
-<div id="apiNote">Using free Financial Modeling Prep API (unlimited calls, no key needed)</div>
+<h1>Stock Portfolio Tracker</h1>
 
-<div style="text-align:center; margin:25px 0;">
+<div class="controls">
+  <!-- API Key Input -->
+  <div class="api-box">
+    <div>
+      <strong>API Key:</strong>
+      <input type="text" id="apiKey" placeholder="Leave empty for Demo Mode">
+    </div>
+    <small>Leave empty to use simulated data.<br>Get free key at financialmodelingprep.com</small>
+  </div>
+
   <button id="addStock">+ Add Stock</button>
-  <span style="margin-left:40px; font-size:18px;">
-    Evaluation date: <input type="date" id="evalDate">
-  </span>
+  
+  <div style="display:flex; align-items:center; gap:10px;">
+    <label>Valuation Date:</label>
+    <input type="date" id="evalDate" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+  </div>
 </div>
 
-<table id="portfolioTable">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Ticker</th>
-      <th>Shares</th>
-      <th>Purchase Price $</th>
-      <th>OR Purchase Date</th>
-      <th>Cost Basis</th>
-      <th>Current Price</th>
-      <th>Value Now</th>
-      <th>Gain $</th>
-      <th>Gain %</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+<div class="table-container">
+  <table id="portfolioTable">
+    <thead>
+      <tr>
+        <th style="width: 50px;">#</th>
+        <th style="width: 120px;">Ticker</th>
+        <th style="width: 100px;">Shares</th>
+        <th style="width: 120px;">Purchase Price $</th>
+        <th style="width: 140px;">OR Purchase Date</th>
+        <th>Cost Basis</th>
+        <th>Current Price</th>
+        <th>Value Now</th>
+        <th>Gain $</th>
+        <th>Gain %</th>
+        <th style="width: 60px;"></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
 
 <div id="summary">
-  Total portfolio value: <span id="totalValue">$0.00</span><br>
-  Total gain/loss: <span id="totalGain">$0.00</span> (<span id="totalGainPct">0%</span>)
+  <div class="summary-item">
+    <span class="summary-label">Total Cost</span>
+    <span id="totalCost" class="summary-val">$0.00</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Portfolio Value</span>
+    <span id="totalValue" class="summary-val">$0.00</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Total Gain/Loss</span>
+    <span id="totalGain" class="summary-val">$0.00</span>
+  </div>
 </div>
 
 <script>
-// FMP API – Unlimited free tier, batch quotes for efficiency
 const FMP_BASE = "https://financialmodelingprep.com/api/v3";
-
 const tbody = document.querySelector("#portfolioTable tbody");
 const addBtn = document.getElementById("addStock");
 const evalDateInput = document.getElementById("evalDate");
-let rows = [];
-let totalCost = 0;
+const apiKeyInput = document.getElementById("apiKey");
 
+let rows = [];
+
+// Set default date to today
 evalDateInput.value = dayjs().format("YYYY-MM-DD");
+
+// --- UTILITY: DEBOUNCE ---
+// Prevents the API from firing on every single keystroke
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+
+// Create a debounced version of refresh (waits 1000ms after typing stops)
+const debouncedRefresh = debounce(refresh, 1000);
 
 function addRow() {
   if (rows.length >= 10) {
-    alert("Maximum 10 stocks allowed");
+    alert("Maximum 10 stocks allowed for this demo.");
     return;
   }
 
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td class="num">${rows.length + 1}</td>
-    <td><input class="ticker" placeholder="AAPL"></td>
-    <td><input type="number" class="shares" min="0" step="0.001" placeholder="100"></td>
-    <td><input type="number" class="price" step="0.01" placeholder="or use date →"></td>
-    <td><input type="date" class="purchaseDate"></td>
+    <td><input class="ticker table-input" type="text" placeholder="AAPL" style="text-transform:uppercase"></td>
+    <td><input type="number" class="shares table-input" min="0" step="any" placeholder="10"></td>
+    <td><input type="number" class="price table-input" min="0" step="any" placeholder="Price"></td>
+    <td><input type="date" class="purchaseDate table-input"></td>
     <td class="cost">-</td>
-    <td class="currentPrice loading">Loading…</td>
+    <td class="currentPrice loading">-</td>
     <td class="value">-</td>
     <td class="gainDollar">-</td>
     <td class="gainPercent">-</td>
     <td><button class="remove-btn">X</button></td>
   `;
 
+  // Remove Logic
   tr.querySelector(".remove-btn").onclick = () => {
     tr.remove();
     rows = rows.filter(r => r !== tr);
     rows.forEach((r, i) => r.querySelector(".num").textContent = i + 1);
-    refresh();
+    refresh(); // Immediate refresh on delete is fine
   };
 
-  ["ticker", "shares", "price", "purchaseDate"].forEach(cls =>
-    tr.querySelector(`.${cls}`).addEventListener("input", refresh)
-  );
+  // Attach Listeners to inputs
+  // We use 'input' for immediate UI feel, but debounce the heavy API call
+  const inputs = tr.querySelectorAll("input");
+  inputs.forEach(input => {
+    input.addEventListener("input", () => {
+        // UI updates that don't need API can happen here if we wanted
+        debouncedRefresh(); 
+    });
+  });
 
   tbody.appendChild(tr);
   rows.push(tr);
 }
 
-addBtn.onclick = addRow;
-evalDateInput.onchange = refresh;
+// --- DATA FETCHING ---
 
-async function fetchPrices(tickers, isHistorical = false) {
+async function fetchPrices(tickers, isHistorical = false, specificDate = null) {
   if (tickers.length === 0) return {};
-  try {
-    let endpoint = isHistorical ? "/historical-price-full" : "/quote";
-    const params = isHistorical ? { symbol: tickers[0], from: "2020-01-01", to: evalDateInput.value || dayjs().format("YYYY-MM-DD") } : { symbols: tickers.join(",") };
-    const { data } = await axios.get(`${FMP_BASE}${endpoint}`, { params });
+
+  const apiKey = apiKeyInput.value.trim();
+  const useMock = apiKey === "";
+
+  // 1. MOCK DATA MODE (If no key is provided)
+  if (useMock) {
+    console.log("Using Mock Data (No API Key provided)");
+    const mockData = {};
     if (isHistorical) {
-      // Single ticker historical
+      // Return a random price between 100 and 200 for historical mock
+      return (Math.random() * 100) + 100;
+    } else {
+      // Return map of tickers
+      tickers.forEach(t => {
+        // Generate a stable-ish mock number based on ticker string length
+        mockData[t] = 150 + (t.length * 10) + (Math.random() * 5); 
+      });
+      return mockData;
+    }
+  }
+
+  // 2. REAL API MODE
+  try {
+    let endpoint = isHistorical ? "/historical-price-full/" + tickers[0] : "/quote/" + tickers.join(",");
+    
+    // Construct Params
+    const params = { apikey: apiKey };
+    
+    // For historical, we fetch a range to be safe, then filter in JS
+    if (isHistorical && specificDate) {
+        params.from = dayjs(specificDate).subtract(5, 'day').format("YYYY-MM-DD");
+        params.to = dayjs(specificDate).add(5, 'day').format("YYYY-MM-DD");
+    }
+
+    // Axios Call
+    const response = await axios.get(`${FMP_BASE}${endpoint}`, { params });
+    const data = response.data;
+
+    if (isHistorical) {
+      // FMP Historical format: { symbol: "AAPL", historical: [...] }
       const histData = data.historical || [];
-      const targetDate = dayjs(evalDateInput.value || row.querySelector(".purchaseDate").value);
+      const target = dayjs(specificDate);
+      
+      // Find closest date
       let closestPrice = null;
       let minDiff = Infinity;
+      
       for (const day of histData) {
         const dayDate = dayjs(day.date);
-        if (dayDate.isBefore(targetDate) || dayDate.isSame(targetDate)) {
-          const diff = Math.abs(dayDate.diff(targetDate, 'day'));
-          if (diff < minDiff) {
+        const diff = Math.abs(dayDate.diff(target, 'day'));
+        if (diff < minDiff) {
             minDiff = diff;
-            closestPrice = parseFloat(day.close);
-          }
+            closestPrice = day.close;
         }
       }
       return closestPrice;
+
     } else {
-      // Batch current prices
+      // FMP Quote format: Array of objects
       const priceMap = {};
-      data.forEach(q => {
-        if (q.symbol && !isNaN(q.price)) {
-          priceMap[q.symbol] = parseFloat(q.price);
-        }
-      });
+      // Handle case where API returns error message in 200 OK
+      if (data["Error Message"]) throw new Error(data["Error Message"]);
+      
+      if(Array.isArray(data)) {
+        data.forEach(q => {
+            if (q.symbol) priceMap[q.symbol] = q.price;
+        });
+      }
       return priceMap;
     }
+
   } catch (err) {
-    console.error("FMP fetch error:", err);
+    console.error("API Error:", err);
     return isHistorical ? null : {};
   }
 }
 
-async function refresh() {
-  totalCost = 0;
-  let totalValue = 0;
+// --- MAIN LOGIC ---
 
+async function refresh() {
+  const isMock = apiKeyInput.value.trim() === "";
+  
+  // 1. Set Loading State
   rows.forEach(r => {
-    r.querySelector(".currentPrice").textContent = "Loading…";
-    r.querySelector(".currentPrice").classList.add("loading");
-    r.querySelector(".cost").textContent = "-";
-    r.querySelector(".value").textContent = "-";
-    r.querySelector(".gainDollar").textContent = "-";
-    r.querySelector(".gainPercent").textContent = "-";
+    const pEl = r.querySelector(".currentPrice");
+    pEl.textContent = "Loading...";
+    pEl.classList.remove("error", "positive", "negative");
+    pEl.classList.add("loading");
   });
 
-  const tickers = rows.map(r => r.querySelector(".ticker").value.trim().toUpperCase()).filter(Boolean);
+  // 2. Gather Tickers
+  const tickers = rows
+    .map(r => r.querySelector(".ticker").value.trim().toUpperCase())
+    .filter(t => t.length > 0);
+
   if (tickers.length === 0) {
-    updateSummary(0, 0);
+    updateTotals(0, 0, 0);
+    rows.forEach(r => r.querySelector(".currentPrice").textContent = "-");
     return;
   }
 
-  // Batch fetch current prices (one call for all tickers)
+  // 3. Batch Fetch Current Prices
+  // Note: FMP v3 quote endpoint is /quote/AAPL,IBM,TSLA
   const priceMap = await fetchPrices(tickers);
 
+  let grandTotalCost = 0;
+  let grandTotalValue = 0;
+
+  // 4. Process Each Row
   for (const row of rows) {
     const ticker = row.querySelector(".ticker").value.trim().toUpperCase();
     const shares = parseFloat(row.querySelector(".shares").value) || 0;
-    if (!ticker || shares <= 0) continue;
+    
+    // Skip invalid rows
+    if (!ticker || shares <= 0) {
+        row.querySelector(".currentPrice").textContent = "-";
+        continue;
+    }
 
-    const priceNow = priceMap[ticker];
-    if (priceNow === undefined) {
-      row.querySelector(".currentPrice").textContent = "Error";
-      row.querySelector(".currentPrice").classList.add("error");
+    const currentPrice = priceMap[ticker];
+
+    // Handle Missing Price
+    const priceEl = row.querySelector(".currentPrice");
+    if (currentPrice === undefined) {
+      priceEl.textContent = "Err";
+      priceEl.classList.add("error");
       continue;
     }
 
-    row.querySelector(".currentPrice").textContent = priceNow.toFixed(2);
-    row.querySelector(".currentPrice").classList.remove("loading");
+    // Display Price
+    priceEl.textContent = "$" + currentPrice.toFixed(2) + (isMock ? "*" : "");
+    priceEl.classList.remove("loading");
 
-    // Cost basis
+    // Calculate Cost Basis
     let costBasis = 0;
     const manualPrice = parseFloat(row.querySelector(".price").value);
-    if (manualPrice > 0) {
-      costBasis = manualPrice * shares;
+    
+    if (!isNaN(manualPrice) && manualPrice > 0) {
+        // User entered manual price
+        costBasis = manualPrice * shares;
     } else {
-      const purchaseDate = row.querySelector(".purchaseDate").value;
-      if (purchaseDate) {
-        const priceAtDate = await fetchPrices([ticker], true);
-        if (priceAtDate) {
-          costBasis = priceAtDate * shares;
-          row.querySelector(".price").value = priceAtDate.toFixed(2);
+        // Look for date
+        const pDate = row.querySelector(".purchaseDate").value;
+        if (pDate) {
+            // Fetch historical (Mock or Real)
+            const histPrice = await fetchPrices([ticker], true, pDate);
+            if (histPrice) {
+                costBasis = histPrice * shares;
+                // Update the input placeholder to show what we found
+                row.querySelector(".price").placeholder = `~${histPrice.toFixed(2)}`;
+            }
         }
-      }
     }
 
-    const marketValue = priceNow * shares;
+    // Calculations
+    const marketValue = currentPrice * shares;
     const gain = marketValue - costBasis;
     const gainPct = costBasis > 0 ? (gain / costBasis) * 100 : 0;
 
-    row.querySelector(".cost").textContent = costBasis.toFixed(2);
-    row.querySelector(".value").textContent = marketValue.toFixed(2);
-    row.querySelector(".gainDollar").textContent = gain.toFixed(2);
-    row.querySelector(".gainDollar").style.color = gain >= 0 ? "green" : "red";
-    row.querySelector(".gainPercent").textContent = gainPct.toFixed(1) + "%";
-    row.querySelector(".gainPercent").style.color = gain >= 0 ? "green" : "red";
+    // Update Row UI
+    row.querySelector(".cost").textContent = costBasis > 0 ? "$" + costBasis.toFixed(2) : "-";
+    row.querySelector(".value").textContent = "$" + marketValue.toFixed(2);
+    
+    const gainEl = row.querySelector(".gainDollar");
+    gainEl.textContent = (gain >= 0 ? "+" : "") + gain.toFixed(2);
+    gainEl.className = "gainDollar " + (gain >= 0 ? "positive" : "negative");
 
-    totalCost += costBasis;
-    totalValue += marketValue;
+    const pctEl = row.querySelector(".gainPercent");
+    pctEl.textContent = gainPct.toFixed(1) + "%";
+    pctEl.className = "gainPercent " + (gain >= 0 ? "positive" : "negative");
+
+    grandTotalCost += costBasis;
+    grandTotalValue += marketValue;
   }
 
-  updateSummary(totalValue, totalValue - totalCost);
+  updateTotals(grandTotalCost, grandTotalValue);
 }
 
-function updateSummary(value, gain) {
+function updateTotals(cost, value) {
+  const gain = value - cost;
+  document.getElementById("totalCost").textContent = "$" + cost.toFixed(2);
   document.getElementById("totalValue").textContent = "$" + value.toFixed(2);
-  const gainText = (gain >= 0 ? "+" : "") + "$" + gain.toFixed(2);
-  document.getElementById("totalGain").textContent = gainText;
-  document.getElementById("totalGain").style.color = gain >= 0 ? "green" : "red";
-  const pct = totalCost > 0 ? (gain / totalCost * 100).toFixed(1) + "%" : "0%";
-  document.getElementById("totalGainPct").textContent = pct;
-  document.getElementById("totalGainPct").style.color = gain >= 0 ? "green" : "red";
+  
+  const gainEl = document.getElementById("totalGain");
+  gainEl.textContent = (gain >= 0 ? "+" : "") + "$" + gain.toFixed(2);
+  gainEl.className = "summary-val " + (gain >= 0 ? "positive" : "negative");
 }
+
+// Initial Setup
+addBtn.onclick = addRow;
+evalDateInput.onchange = debouncedRefresh;
+apiKeyInput.oninput = debouncedRefresh;
 
 // Start with one row
 addRow();
+
 </script>
+
 </body>
 </html>
