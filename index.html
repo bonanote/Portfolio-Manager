@@ -21,7 +21,36 @@
   /* Table */
   .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
   table { width: 100%; border-collapse: collapse; min-width: 1100px; }
-  th { text-align: left; font-size: 12px; color: #555; text-transform: uppercase; padding: 10px 8px; border-bottom: 2px solid #eee; white-space: nowrap; }
+  
+  th { 
+    text-align: left; 
+    font-size: 12px; 
+    color: #555; 
+    text-transform: uppercase; 
+    padding: 10px 8px; 
+    border-bottom: 2px solid #eee; 
+    white-space: nowrap; 
+    user-select: none;
+  }
+  
+  /* Sortable Headers */
+  th.sortable {
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  th.sortable:hover {
+    background-color: #f1f3f5;
+    color: #007bff;
+  }
+  th.sortable::after {
+    content: ' ↕';
+    font-size: 10px;
+    color: #ccc;
+    margin-left: 4px;
+  }
+  th.sortable.asc::after { content: ' ↑'; color: #007bff; }
+  th.sortable.desc::after { content: ' ↓'; color: #007bff; }
+
   td { padding: 8px; border-bottom: 1px solid #f1f1f1; vertical-align: top; }
   
   /* Inputs in Table */
@@ -58,8 +87,15 @@
   }
   .yahoo-link:hover { background: #500095; }
 
-  /* Summary Section */
-  .summary-panel { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee; }
+  /* Summary Section - Updated Grid */
+  .summary-panel { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+    gap: 15px; 
+    margin-top: 20px; 
+    padding-top: 20px; 
+    border-top: 2px solid #eee; 
+  }
   .summary-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
   .sum-label { font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 5px; }
   .sum-value { font-size: 24px; font-weight: 800; color: #333; }
@@ -124,15 +160,15 @@
     <table id="pfTable">
       <thead>
         <tr>
-          <th width="110">Ticker</th>
+          <th class="sortable" onclick="sortPortfolio('ticker')">Ticker</th>
           <th width="80">Shares</th>
           <th width="140">Start Date</th>
           <th width="110">Start Price ($)</th>
-          <th width="120">Initial Cost</th>
+          <th class="sortable" onclick="sortPortfolio('initial')">Initial Cost</th>
           <th width="110">End Price ($)</th>
-          <th width="120">Final Value</th>
-          <th width="120">Gain/Loss ($)</th>
-          <th width="80">Return %</th>
+          <th class="sortable" onclick="sortPortfolio('final')">Final Value</th>
+          <th class="sortable" onclick="sortPortfolio('gain')">Gain/Loss ($)</th>
+          <th class="sortable" onclick="sortPortfolio('return')">Return %</th>
           <th width="40"></th>
         </tr>
       </thead>
@@ -162,6 +198,10 @@
       <div class="sum-label">Total Return %</div>
       <div class="sum-value" id="sumReturn" style="color:#007bff;">0.00%</div>
     </div>
+    <div class="summary-card" style="background:#fff3cd;">
+      <div class="sum-label">Annual Growth (CAGR)</div>
+      <div class="sum-value" id="sumCAGR" style="color:#856404;">0.00%</div>
+    </div>
   </div>
 
 </div>
@@ -169,6 +209,7 @@
 <script>
 // --- STATE ---
 let rowCount = 0;
+let currentSort = { column: null, direction: 'asc' };
 const defaultTickers = ['AAPL', 'MSFT', 'GOOGL'];
 
 // --- INIT ---
@@ -234,7 +275,7 @@ function addRow(ticker = '', initialShares = 10) {
         </div>
       </td>
       <td><input type="number" class="num-input" value="${initialShares}" step="any" oninput="calcRow(${rowCount})"></td>
-      <td><input type="date" class="date-input start-date" value="${startDateVal}"></td>
+      <td><input type="date" class="date-input start-date" value="${startDateVal}" onchange="calcRow(${rowCount})"></td>
       <td><input type="number" class="price-input start-price" placeholder="0.00" step="0.01" oninput="calcRow(${rowCount})"></td>
       <td><span class="calc-val val-initial">$0.00</span></td>
       <td><input type="number" class="price-input end-price" placeholder="0.00" step="0.01" oninput="calcRow(${rowCount})"></td>
@@ -253,6 +294,67 @@ function removeRow(id) {
     calculateAll();
 }
 
+// --- SORTING LOGIC ---
+function sortPortfolio(column) {
+    const tbody = document.getElementById('tableBody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    // Toggle direction
+    if (currentSort.column === column) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.column = column;
+        // Default sort direction: descending for numbers, ascending for text
+        currentSort.direction = (column === 'ticker') ? 'asc' : 'desc';
+    }
+
+    // Sort Rows
+    rows.sort((a, b) => {
+        let valA, valB;
+
+        if (column === 'ticker') {
+            valA = a.querySelector('.ticker-input').value.toUpperCase();
+            valB = b.querySelector('.ticker-input').value.toUpperCase();
+            return currentSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } else {
+            // Numeric Sorts
+            if (column === 'initial') {
+                valA = parseMoney(a.querySelector('.val-initial').textContent);
+                valB = parseMoney(b.querySelector('.val-initial').textContent);
+            } else if (column === 'final') {
+                valA = parseMoney(a.querySelector('.val-final').textContent);
+                valB = parseMoney(b.querySelector('.val-final').textContent);
+            } else if (column === 'gain') {
+                valA = parseMoney(a.querySelector('.gain-val').textContent);
+                valB = parseMoney(b.querySelector('.gain-val').textContent);
+            } else if (column === 'return') {
+                valA = parseFloat(a.querySelector('.pct-val').textContent);
+                valB = parseFloat(b.querySelector('.pct-val').textContent);
+            }
+            
+            return currentSort.direction === 'asc' ? valA - valB : valB - valA;
+        }
+    });
+
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+
+    // Update Header Indicators
+    document.querySelectorAll('th.sortable').forEach(th => {
+        th.classList.remove('asc', 'desc');
+    });
+    // Find the header matching the column and add class
+    // Using mapping based on index or onclick content is tricky, let's look at onclick attr
+    const targetTh = Array.from(document.querySelectorAll('th.sortable')).find(th => 
+        th.getAttribute('onclick').includes(`'${column}'`)
+    );
+    if(targetTh) targetTh.classList.add(currentSort.direction);
+}
+
+function parseMoney(str) {
+    return parseFloat(str.replace(/[^0-9.-]/g, '')) || 0;
+}
+
 // --- CSV IMPORT LOGIC ---
 
 function handleFileSelect(evt) {
@@ -262,7 +364,6 @@ function handleFileSelect(evt) {
     const reader = new FileReader();
     reader.onload = function(e) {
         processCSV(e.target.result);
-        // Reset input so same file can be selected again if needed
         evt.target.value = '';
     };
     reader.readAsText(file);
@@ -270,29 +371,17 @@ function handleFileSelect(evt) {
 
 function processCSV(text) {
     const lines = text.split(/\r\n|\n/);
-    
-    // Check if we should clear existing rows? 
-    // Usually importers append, but let's clear the default empty ones if user hasn't edited them.
-    // For now, simple append approach is safer.
-    
     let addedCount = 0;
 
     lines.forEach(line => {
         if (!line.trim()) return;
-        
-        // CSV Parse: handles Ticker,"1,000.00"
         const parts = parseCSVLine(line);
         if(parts.length < 2) return;
         
         const ticker = parts[0].trim().replace(/^"|"$/g, '').toUpperCase();
-        
-        // Skip header row
         if(ticker.includes("TICKER")) return;
         
-        // Clean shares: remove quotes and commas
-        let sharesStr = parts[1].trim().replace(/^"|"$/g, ''); 
-        sharesStr = sharesStr.replace(/,/g, ''); 
-        
+        let sharesStr = parts[1].trim().replace(/^"|"$/g, '').replace(/,/g, ''); 
         const shares = parseFloat(sharesStr);
         
         if (ticker && !isNaN(shares)) {
@@ -311,21 +400,16 @@ function processCSV(text) {
 }
 
 function parseCSVLine(text) {
-    // Simple state machine to split by comma while ignoring commas inside quotes
     const result = [];
     let current = '';
     let inQuote = false;
-    
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
-        if (char === '"') {
-            inQuote = !inQuote;
-        } else if (char === ',' && !inQuote) {
+        if (char === '"') inQuote = !inQuote;
+        else if (char === ',' && !inQuote) {
             result.push(current);
             current = '';
-        } else {
-            current += char;
-        }
+        } else current += char;
     }
     result.push(current);
     return result;
@@ -374,6 +458,10 @@ function calculateAll() {
 function updateSummary() {
     let totalInitial = 0;
     let totalFinal = 0;
+    let weightedTimeAccumulator = 0; // Cost * Years
+    
+    const globalEndDateStr = document.getElementById('globalEndDate').value;
+    const globalEndDate = dayjs(globalEndDateStr);
 
     const rows = document.querySelectorAll('#tableBody tr');
     rows.forEach(tr => {
@@ -381,13 +469,41 @@ function updateSummary() {
         const sP = parseFloat(tr.querySelector('.start-price').value) || 0;
         const eP = parseFloat(tr.querySelector('.end-price').value) || 0;
         
-        totalInitial += (shares * sP);
+        const initial = shares * sP;
+        
+        // Accumulate totals
+        totalInitial += initial;
         totalFinal += (shares * eP);
+        
+        // Calculate Weighted Time for CAGR
+        // Get this row's start date
+        const rowStartDateVal = tr.querySelector('.start-date').value;
+        if(rowStartDateVal && globalEndDateStr && initial > 0) {
+            const sDate = dayjs(rowStartDateVal);
+            const diffDays = globalEndDate.diff(sDate, 'day');
+            const years = diffDays / 365.25;
+            weightedTimeAccumulator += (initial * years);
+        }
     });
 
     const totalGain = totalFinal - totalInitial;
     const totalReturn = totalInitial > 0 ? (totalGain / totalInitial) * 100 : 0;
+    
+    // Calculate Weighted Average Years
+    const avgYears = totalInitial > 0 ? weightedTimeAccumulator / totalInitial : 0;
+    
+    // Calculate Portfolio CAGR
+    // Formula: (Final / Initial)^(1/years) - 1
+    let cagr = 0;
+    if(totalInitial > 0 && totalFinal > 0 && avgYears > 0.01) {
+        cagr = (Math.pow((totalFinal / totalInitial), (1 / avgYears)) - 1) * 100;
+    } else if (totalInitial > 0 && totalFinal > 0 && avgYears <= 0.01) {
+        // Fallback for very short periods to avoid infinity
+        // Or simply show simple return if time < 4 days
+        cagr = totalReturn; 
+    }
 
+    // Display Updates
     document.getElementById('sumInitial').textContent = fmtMoney(totalInitial);
     document.getElementById('sumFinal').textContent = fmtMoney(totalFinal);
     
@@ -398,6 +514,11 @@ function updateSummary() {
     const retEl = document.getElementById('sumReturn');
     retEl.textContent = totalReturn.toFixed(2) + "%";
     retEl.className = "sum-value " + (totalReturn >= 0 ? "positive" : "negative");
+    
+    const cagrEl = document.getElementById('sumCAGR');
+    cagrEl.textContent = cagr.toFixed(2) + "%";
+    // Color code CAGR nicely
+    cagrEl.className = "sum-value " + (cagr >= 0 ? "positive" : "negative");
 }
 
 function fmtMoney(n) {
