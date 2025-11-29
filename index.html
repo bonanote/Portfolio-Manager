@@ -11,16 +11,16 @@
   .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.9em; }
 
   /* Main Layout */
-  .container { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+  .container { max-width: 1250px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
 
   /* Global Controls */
-  .global-controls { display: flex; gap: 20px; align-items: flex-end; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; }
+  .global-controls { display: flex; gap: 20px; align-items: flex-end; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; flex-wrap: wrap; }
   .control-group { display: flex; flex-direction: column; gap: 5px; }
   .control-group label { font-size: 12px; font-weight: 700; color: #666; text-transform: uppercase; }
   
   /* Table */
   .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
-  table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1100px; }
   th { text-align: left; font-size: 12px; color: #555; text-transform: uppercase; padding: 10px 8px; border-bottom: 2px solid #eee; white-space: nowrap; }
   td { padding: 8px; border-bottom: 1px solid #f1f1f1; vertical-align: top; }
   
@@ -28,7 +28,7 @@
   input { padding: 8px; border: 1px solid #dfe3e8; border-radius: 4px; font-size: 14px; width: 100%; box-sizing: border-box; transition: border 0.2s; }
   input:focus { border-color: #007bff; outline: none; background: #f9fbff; }
   
-  .ticker-input { text-transform: uppercase; font-weight: bold; width: 80px; }
+  .ticker-input { text-transform: uppercase; font-weight: bold; width: 70px; }
   .date-input { width: 130px; }
   .num-input { width: 90px; }
   .price-input { width: 100px; font-weight: 500; }
@@ -39,12 +39,23 @@
 
   /* Buttons */
   .btn { padding: 10px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+  .btn-sm { padding: 6px 10px; font-size: 12px; }
   .btn-primary { background: #007bff; color: white; }
+  .btn-secondary { background: #6c757d; color: white; }
   .btn-magic { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
   .btn-add { background: #e9ecef; color: #333; border: 1px solid #ced4da; }
   .btn-remove { background: transparent; color: #dc3545; border: 1px solid transparent; font-size: 18px; padding: 4px 8px; line-height: 1; }
   .btn:hover { opacity: 0.9; }
   .btn-remove:hover { background: #fee; border-color: #fcc; }
+
+  /* Yahoo Link Button */
+  .yahoo-link {
+    display: flex; align-items: center; justify-content: center;
+    background: #720e9e; color: white; text-decoration: none;
+    font-size: 11px; font-weight: bold; width: 24px; height: 24px;
+    border-radius: 4px; transition: background 0.2s;
+  }
+  .yahoo-link:hover { background: #500095; }
 
   /* Summary Section */
   .summary-panel { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee; }
@@ -68,6 +79,17 @@
 
   <!-- Global Settings -->
   <div class="global-controls">
+    
+    <!-- New: Global Start Date -->
+    <div class="control-group">
+      <label>Global Start Date</label>
+      <div style="display:flex; gap:5px;">
+        <input type="date" id="globalStartDate" class="date-input" style="width:140px;">
+        <button class="btn btn-secondary btn-sm" onclick="applyGlobalStart()" title="Set this date for all stocks">Apply to All</button>
+      </div>
+    </div>
+
+    <!-- Existing: Global End Date -->
     <div class="control-group">
       <label>Valuation Date (End Date)</label>
       <input type="date" id="globalEndDate" class="date-input" style="width:160px;">
@@ -85,7 +107,7 @@
     <div style="font-size:12px;">
       <details>
         <summary style="cursor:pointer; color:#007bff;">API Settings</summary>
-        <div style="position:absolute; background:white; padding:10px; border:1px solid #ccc; border-radius:4px; box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-top:5px; right: 40px; width:250px;">
+        <div style="position:absolute; background:white; padding:10px; border:1px solid #ccc; border-radius:4px; box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-top:5px; right: 40px; width:250px; z-index: 10;">
            <label>FMP Key (Optional)</label>
            <input type="text" id="apiKey" placeholder="Paste Key Here" style="margin-top:5px;">
            <button onclick="saveKey()" style="margin-top:5px; font-size:11px; padding:4px;">Save</button>
@@ -99,9 +121,9 @@
     <table id="pfTable">
       <thead>
         <tr>
-          <th width="80">Ticker</th>
+          <th width="110">Ticker</th>
           <th width="80">Shares</th>
-          <th width="140">Purchase Date (Start)</th>
+          <th width="140">Start Date</th>
           <th width="110">Start Price ($)</th>
           <th width="120">Initial Cost</th>
           <th width="110">End Price ($)</th>
@@ -148,6 +170,9 @@ const defaultTickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'];
 
 // --- INIT ---
 document.getElementById('globalEndDate').value = dayjs().format("YYYY-MM-DD");
+// Default start date (1 year ago)
+document.getElementById('globalStartDate').value = dayjs().subtract(1, 'year').format("YYYY-MM-DD");
+
 const savedKey = localStorage.getItem('fmp_key');
 if(savedKey) document.getElementById('apiKey').value = savedKey;
 
@@ -161,19 +186,52 @@ function saveKey() {
     alert("Key Saved");
 }
 
+function updateYahooLink(id) {
+    const row = document.getElementById(`row-${id}`);
+    const ticker = row.querySelector('.ticker-input').value.toUpperCase();
+    const link = row.querySelector('.yahoo-link');
+    if(ticker) {
+        link.href = `https://finance.yahoo.com/quote/${ticker}`;
+        link.style.display = 'flex';
+    } else {
+        link.style.display = 'none';
+    }
+}
+
+function applyGlobalStart() {
+    const globalDate = document.getElementById('globalStartDate').value;
+    if(!globalDate) return;
+    
+    const rows = document.querySelectorAll('#tableBody tr');
+    rows.forEach(tr => {
+        tr.querySelector('.start-date').value = globalDate;
+        // Visual feedback
+        const dateInput = tr.querySelector('.start-date');
+        dateInput.style.backgroundColor = "#e2e6ea";
+        setTimeout(() => dateInput.style.backgroundColor = "", 500);
+    });
+}
+
 function addRow(ticker = '') {
     rowCount++;
     const tbody = document.getElementById('tableBody');
     const tr = document.createElement('tr');
     tr.id = `row-${rowCount}`;
     
-    // Default Start Date: 1 Year Ago
-    const defaultStart = dayjs().subtract(1, 'year').format("YYYY-MM-DD");
+    // Default Start Date: Use global if set, otherwise 1 Year Ago
+    let startDateVal = document.getElementById('globalStartDate').value;
+    if(!startDateVal) startDateVal = dayjs().subtract(1, 'year').format("YYYY-MM-DD");
 
     tr.innerHTML = `
-      <td><input type="text" class="ticker-input" value="${ticker}" placeholder="SYM" oninput="this.value = this.value.toUpperCase()"></td>
+      <td>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="text" class="ticker-input" value="${ticker}" placeholder="SYM" 
+                 oninput="this.value = this.value.toUpperCase(); updateYahooLink(${rowCount})">
+          <a href="https://finance.yahoo.com/quote/${ticker}" target="_blank" class="yahoo-link" title="Open Yahoo Finance">Y!</a>
+        </div>
+      </td>
       <td><input type="number" class="num-input" value="10" step="any" oninput="calcRow(${rowCount})"></td>
-      <td><input type="date" class="date-input start-date" value="${defaultStart}"></td>
+      <td><input type="date" class="date-input start-date" value="${startDateVal}"></td>
       <td><input type="number" class="price-input start-price" placeholder="0.00" step="0.01" oninput="calcRow(${rowCount})"></td>
       <td><span class="calc-val val-initial">$0.00</span></td>
       <td><input type="number" class="price-input end-price" placeholder="0.00" step="0.01" oninput="calcRow(${rowCount})"></td>
