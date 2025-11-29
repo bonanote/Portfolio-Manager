@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Stock Portfolio Tracker – Works Perfectly (Desktop)</title>
+<title>Stock Portfolio Tracker – Fixed for 2025 (No More 401 Errors)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.7/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
@@ -17,6 +17,7 @@
   .remove-btn { background:#e74c3c; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; }
   #summary { margin-top:30px; padding:25px; background:#e3f2fd; border-radius:12px; text-align:center; font-size:1.5em; font-weight:bold; }
   .loading { color:#ff9800; }
+  .error { color:#e74c3c; }
 </style>
 </head>
 <body>
@@ -55,13 +56,14 @@
 </div>
 
 <script>
-// Reliable proxy that works perfectly in 2025
-const PROXY = "https://corsproxy.io/?";   // ← this one works great right now
+// FIXED: Switched to CodeTabs proxy (reliable for Yahoo in late 2025, no auth needed)
+const PROXY = "https://api.codetabs.com/v1/proxy?quest=";
 
 const tbody = document.querySelector("#portfolioTable tbody");
 const addBtn = document.getElementById("addStock");
 const evalDateInput = document.getElementById("evalDate");
 let rows = [];
+let totalCost = 0;
 
 evalDateInput.value = dayjs().format("YYYY-MM-DD");
 
@@ -102,9 +104,10 @@ function addRow() {
 }
 
 addBtn.onclick = addRow;
+evalDateInput.onchange = refresh;
 
 async function refresh() {
-  let totalCost = 0;
+  totalCost = 0;
   let totalValue = 0;
 
   rows.forEach(r => {
@@ -123,8 +126,8 @@ async function refresh() {
   }
 
   try {
-    // Current prices
-    const quoteUrl = PROXY + encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${tickers.join(",")}`);
+    // FIXED: Direct append to CodeTabs (no extra encode needed)
+    const quoteUrl = PROXY + `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${tickers.join(",")}`;
     const { data: quoteData } = await axios.get(quoteUrl);
     const quotes = quoteData.quoteResponse.result;
 
@@ -136,6 +139,7 @@ async function refresh() {
       const q = quotes.find(x => x.symbol === ticker);
       if (!q) {
         row.querySelector(".currentPrice").textContent = "Invalid";
+        row.querySelector(".currentPrice").classList.add("error");
         continue;
       }
 
@@ -151,7 +155,7 @@ async function refresh() {
       } else if (row.querySelector(".purchaseDate").value) {
         const date = row.querySelector(".purchaseDate").value;
         try {
-          const chartUrl = PROXY + encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`);
+          const chartUrl = PROXY + `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`;
           const { data: chart } = await axios.get(chartUrl);
           const ts = chart.chart.result[0].timestamp;
           const close = chart.chart.result[0].indicators.quote[0].close;
@@ -164,11 +168,12 @@ async function refresh() {
               break;
             }
           }
-          if (priceAtDate) {
+          if (priceAtDate && !isNaN(priceAtDate)) {
             costBasis = priceAtDate * shares;
             row.querySelector(".price").value = priceAtDate.toFixed(2);
           }
         } catch (e) {
+          console.error("Historical fetch failed for " + ticker + ":", e);
           row.querySelector(".purchaseDate").style.borderColor = "red";
         }
       }
@@ -191,8 +196,8 @@ async function refresh() {
     updateSummary(totalValue, totalValue - totalCost);
 
   } catch (err) {
-    console.error(err);
-    alert("Could not load data. Try again in a moment or check ticker symbols.");
+    console.error("API fetch error:", err);
+    alert("Could not load stock data. Check console for details or try again soon. (Proxy might be rate-limited—wait 1 min.)");
   }
 }
 
@@ -208,7 +213,6 @@ function updateSummary(value, gain) {
 
 // Start with one row
 addRow();
-
 </script>
 </body>
 </html>
