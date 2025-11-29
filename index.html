@@ -43,6 +43,7 @@
   .btn-primary { background: #007bff; color: white; }
   .btn-secondary { background: #6c757d; color: white; }
   .btn-magic { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+  .btn-csv { background: #28a745; color: white; }
   .btn-add { background: #e9ecef; color: #333; border: 1px solid #ced4da; }
   .btn-remove { background: transparent; color: #dc3545; border: 1px solid transparent; font-size: 18px; padding: 4px 8px; line-height: 1; }
   .btn:hover { opacity: 0.9; }
@@ -97,9 +98,11 @@
     
     <div class="control-group" style="flex:1;">
        <label>Actions</label>
-       <div style="display:flex; gap:10px; align-items:center;">
-         <button class="btn btn-magic" onclick="fetchAllYahoo()">✨ Fetch All Prices (Yahoo)</button>
-         <button class="btn btn-primary" onclick="calculateAll()">Recalculate Totals</button>
+       <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+         <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
+         <button class="btn btn-csv" onclick="document.getElementById('csvInput').click()">📂 Import CSV</button>
+         <button class="btn btn-magic" onclick="fetchAllYahoo()">✨ Fetch Prices</button>
+         <button class="btn btn-primary" onclick="calculateAll()">Recalculate</button>
          <div id="statusMsg"></div>
        </div>
     </div>
@@ -166,7 +169,7 @@
 <script>
 // --- STATE ---
 let rowCount = 0;
-const defaultTickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'];
+const defaultTickers = ['AAPL', 'MSFT', 'GOOGL'];
 
 // --- INIT ---
 document.getElementById('globalEndDate').value = dayjs().format("YYYY-MM-DD");
@@ -212,7 +215,7 @@ function applyGlobalStart() {
     });
 }
 
-function addRow(ticker = '') {
+function addRow(ticker = '', initialShares = 10) {
     rowCount++;
     const tbody = document.getElementById('tableBody');
     const tr = document.createElement('tr');
@@ -230,7 +233,7 @@ function addRow(ticker = '') {
           <a href="https://finance.yahoo.com/quote/${ticker}" target="_blank" class="yahoo-link" title="Open Yahoo Finance">Y!</a>
         </div>
       </td>
-      <td><input type="number" class="num-input" value="10" step="any" oninput="calcRow(${rowCount})"></td>
+      <td><input type="number" class="num-input" value="${initialShares}" step="any" oninput="calcRow(${rowCount})"></td>
       <td><input type="date" class="date-input start-date" value="${startDateVal}"></td>
       <td><input type="number" class="price-input start-price" placeholder="0.00" step="0.01" oninput="calcRow(${rowCount})"></td>
       <td><span class="calc-val val-initial">$0.00</span></td>
@@ -249,6 +252,85 @@ function removeRow(id) {
     if(row) row.remove();
     calculateAll();
 }
+
+// --- CSV IMPORT LOGIC ---
+
+function handleFileSelect(evt) {
+    const file = evt.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        processCSV(e.target.result);
+        // Reset input so same file can be selected again if needed
+        evt.target.value = '';
+    };
+    reader.readAsText(file);
+}
+
+function processCSV(text) {
+    const lines = text.split(/\r\n|\n/);
+    
+    // Check if we should clear existing rows? 
+    // Usually importers append, but let's clear the default empty ones if user hasn't edited them.
+    // For now, simple append approach is safer.
+    
+    let addedCount = 0;
+
+    lines.forEach(line => {
+        if (!line.trim()) return;
+        
+        // CSV Parse: handles Ticker,"1,000.00"
+        const parts = parseCSVLine(line);
+        if(parts.length < 2) return;
+        
+        const ticker = parts[0].trim().replace(/^"|"$/g, '').toUpperCase();
+        
+        // Skip header row
+        if(ticker.includes("TICKER")) return;
+        
+        // Clean shares: remove quotes and commas
+        let sharesStr = parts[1].trim().replace(/^"|"$/g, ''); 
+        sharesStr = sharesStr.replace(/,/g, ''); 
+        
+        const shares = parseFloat(sharesStr);
+        
+        if (ticker && !isNaN(shares)) {
+            addRow(ticker, shares);
+            addedCount++;
+        }
+    });
+    
+    if(addedCount > 0) {
+        document.getElementById('statusMsg').textContent = `Imported ${addedCount} stocks.`;
+        document.getElementById('statusMsg').style.color = "green";
+        calculateAll();
+    } else {
+        alert("No valid stock data found in CSV.");
+    }
+}
+
+function parseCSVLine(text) {
+    // Simple state machine to split by comma while ignoring commas inside quotes
+    const result = [];
+    let current = '';
+    let inQuote = false;
+    
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '"') {
+            inQuote = !inQuote;
+        } else if (char === ',' && !inQuote) {
+            result.push(current);
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current);
+    return result;
+}
+
 
 // --- CALCULATION LOGIC ---
 
