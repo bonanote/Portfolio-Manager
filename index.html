@@ -507,7 +507,7 @@ function updateSummary() {
     let totalDividends = 0;
     let weightedTimeAccumulator = 0;
     let weightedDivGrowthAccumulator = 0;
-    let totalMarketValWithDivGrowth = 0; // For weighting the div growth
+    let totalMarketValWithDivGrowth = 0; 
     
     const globalEndDateStr = document.getElementById('globalEndDate').value;
     const globalEndDate = dayjs(globalEndDateStr);
@@ -536,7 +536,6 @@ function updateSummary() {
             weightedTimeAccumulator += (initial * years);
         }
         
-        // Weight Dividend Growth by Current Market Value (larger positions matter more)
         if(final > 0 && !isNaN(divGrowth) && divGrowth !== 0) {
             weightedDivGrowthAccumulator += (divGrowth * final);
             totalMarketValWithDivGrowth += final;
@@ -791,9 +790,11 @@ function flash(el) {
 
 async function analyzePortfolio() {
     const aiKeyInput = document.getElementById('geminiKey').value.trim();
+    // Use user input key OR empty string (environment will handle if configured)
     const apiKey = aiKeyInput || "";
     
     if(!apiKey) {
+        // Just a friendly prompt if they haven't set one, but proceed in case env works
         const proceed = confirm("No Gemini API Key entered. If you are in a preview environment with a built-in key, click OK. Otherwise, Cancel and enter a key in Settings.");
         if(!proceed) return;
     }
@@ -817,16 +818,16 @@ async function analyzePortfolio() {
     }).filter(r => r.ticker);
 
     const summary = {
-        capGain: document.getElementById('sumCapGain').textContent,
-        capPct: document.getElementById('sumCapPct').textContent,
-        capCAGR: document.getElementById('sumCapCAGR').textContent,
-        divGain: document.getElementById('sumDivGain').textContent,
-        divPct: document.getElementById('sumDivPct').textContent,
-        divAnn: document.getElementById('sumDivAnn').textContent,
-        divGrowth: document.getElementById('sumDivGrowth').textContent,
-        totalGain: document.getElementById('sumTotalGain').textContent,
-        totalPct: document.getElementById('sumTotalPct').textContent,
-        cagr: document.getElementById('sumCAGR').textContent
+        capGain: document.getElementById('sumCapGain')?.textContent || "N/A",
+        capPct: document.getElementById('sumCapPct')?.textContent || "N/A",
+        capCAGR: document.getElementById('sumCapCAGR')?.textContent || "N/A",
+        divGain: document.getElementById('sumDivGain')?.textContent || "N/A",
+        divPct: document.getElementById('sumDivPct')?.textContent || "N/A",
+        divAnn: document.getElementById('sumDivYield')?.textContent || "N/A",
+        divGrowth: document.getElementById('sumDivGrowth')?.textContent || "N/A",
+        totalGain: document.getElementById('sumTotalGain')?.textContent || "N/A",
+        totalPct: document.getElementById('sumTotalPct')?.textContent || "N/A",
+        cagr: document.getElementById('sumCAGR')?.textContent || "N/A"
     };
 
     // 2. Construct Prompt
