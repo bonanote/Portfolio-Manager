@@ -91,7 +91,8 @@
   .summary-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
   .sum-label { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 0.5px; }
   .sum-value { font-size: 20px; font-weight: 800; color: #333; }
-  .sum-sub { font-size: 13px; font-weight: 600; margin-top: 2px; }
+  .sum-sub { font-size: 13px; font-weight: 600; margin-top: 4px; }
+  .sum-sub-small { font-size: 11px; color: #666; margin-top: 4px; }
   
   .positive { color: #28a745; }
   .negative { color: #dc3545; }
@@ -217,6 +218,7 @@
       <div class="sum-label">Capital Gain (Price)</div>
       <div class="sum-value" id="sumCapGain">$0.00</div>
       <div class="sum-sub" id="sumCapPct">0.00%</div>
+      <div class="sum-sub-small" id="sumCapCAGR" title="Annualized Price Growth">CAGR: 0.0%</div>
     </div>
 
     <!-- Breakdown: Dividends -->
@@ -224,6 +226,7 @@
       <div class="sum-label">Dividend Income</div>
       <div class="sum-value" id="sumDivGain">$0.00</div>
       <div class="sum-sub" id="sumDivPct">0.00%</div>
+      <div class="sum-sub-small" id="sumDivAnn" title="Annualized Yield">Ann. Yield: 0.0%</div>
     </div>
 
     <!-- Total -->
@@ -231,11 +234,7 @@
       <div class="sum-label">Total Return (All)</div>
       <div class="sum-value" id="sumTotalGain">$0.00</div>
       <div class="sum-sub" id="sumTotalPct">0.00%</div>
-    </div>
-
-    <div class="summary-card" style="background:#fff3cd;">
-      <div class="sum-label">CAGR (Annualized)</div>
-      <div class="sum-value" id="sumCAGR" style="color:#856404;">0.00%</div>
+      <div class="sum-sub-small" id="sumCAGR" style="font-weight:bold; color:#007bff;">Total CAGR: 0.0%</div>
     </div>
     
     <!-- AI Analysis Button -->
@@ -458,8 +457,6 @@ function calcRow(id) {
     
     // Total Gain = (Final Value + Dividends) - Initial Cost
     const totalGain = (finalVal + totalDividends) - initialVal;
-    
-    // Percentage Return based on total gain vs initial
     const pct = initialVal > 0 ? (totalGain / initialVal) * 100 : 0;
 
     row.querySelector('.val-initial').textContent = fmtMoney(initialVal);
@@ -527,16 +524,36 @@ function updateSummary() {
     const divReturnPct = totalInitial > 0 ? (totalDividends / totalInitial) * 100 : 0;
     const totalReturnPct = totalInitial > 0 ? (totalGain / totalInitial) * 100 : 0;
 
-    // CAGR
+    // Time-Weighted Averages
     const avgYears = totalInitial > 0 ? weightedTimeAccumulator / totalInitial : 0;
-    let cagr = 0;
-    // For CAGR, we use the Total Ending Value (Market + Reinvested Dividends assumption) vs Initial
+    
+    // 1. Capital CAGR (Price Growth Only)
+    // Formula: (EndingPrice / StartPrice)^(1/years) - 1
+    let capCAGR = 0;
+    if(totalInitial > 0 && totalMarketVal > 0 && avgYears > 0.01) {
+        capCAGR = (Math.pow((totalMarketVal / totalInitial), (1 / avgYears)) - 1) * 100;
+    } else if (totalInitial > 0 && avgYears <= 0.01) {
+        capCAGR = capReturnPct;
+    }
+
+    // 2. Dividend Annualized Yield (Income Rate)
+    // Formula: TotalDivReturn% / AvgYears (Simple Annualized Yield)
+    // Using CAGR formula for divs is misleading as they are cashflows, not terminal values
+    let divAnn = 0;
+    if(totalInitial > 0 && avgYears > 0.01) {
+        divAnn = divReturnPct / avgYears;
+    } else if (totalInitial > 0 && avgYears <= 0.01) {
+        divAnn = divReturnPct;
+    }
+
+    // 3. Total CAGR (Capital + Divs Reinvested Approximation)
+    let totalCAGR = 0;
     const totalEndValue = totalMarketVal + totalDividends;
     
     if(totalInitial > 0 && totalEndValue > 0 && avgYears > 0.01) {
-        cagr = (Math.pow((totalEndValue / totalInitial), (1 / avgYears)) - 1) * 100;
+        totalCAGR = (Math.pow((totalEndValue / totalInitial), (1 / avgYears)) - 1) * 100;
     } else if (totalInitial > 0 && avgYears <= 0.01) {
-        cagr = totalReturnPct; 
+        totalCAGR = totalReturnPct; 
     }
 
     // UI Updates
@@ -549,13 +566,15 @@ function updateSummary() {
     capGainEl.className = "sum-value " + (capitalGain >= 0 ? "positive" : "negative");
     document.getElementById('sumCapPct').textContent = capReturnPct.toFixed(2) + "%";
     document.getElementById('sumCapPct').className = "sum-sub " + (capReturnPct >= 0 ? "positive" : "negative");
+    document.getElementById('sumCapCAGR').textContent = "CAGR: " + capCAGR.toFixed(2) + "%";
 
     // Dividends
     const divGainEl = document.getElementById('sumDivGain');
     divGainEl.textContent = "+" + fmtMoney(totalDividends);
     divGainEl.className = "sum-value positive";
-    document.getElementById('sumDivPct').textContent = divReturnPct.toFixed(2) + "% Yield";
+    document.getElementById('sumDivPct').textContent = divReturnPct.toFixed(2) + "%";
     document.getElementById('sumDivPct').className = "sum-sub positive";
+    document.getElementById('sumDivAnn').textContent = "Ann. Yield: " + divAnn.toFixed(2) + "%";
 
     // Total Return
     const totalGainEl = document.getElementById('sumTotalGain');
@@ -565,8 +584,10 @@ function updateSummary() {
     document.getElementById('sumTotalPct').className = "sum-sub " + (totalReturnPct >= 0 ? "positive" : "negative");
     
     const cagrEl = document.getElementById('sumCAGR');
-    cagrEl.textContent = cagr.toFixed(2) + "%";
-    cagrEl.className = "sum-value " + (cagr >= 0 ? "positive" : "negative");
+    cagrEl.textContent = "Total CAGR: " + totalCAGR.toFixed(2) + "%";
+    cagrEl.className = "sum-sub-small " + (totalCAGR >= 0 ? "positive" : "negative");
+    cagrEl.style.fontWeight = "bold";
+    cagrEl.style.fontSize = "13px";
 }
 
 function fmtMoney(n) {
@@ -728,8 +749,10 @@ async function analyzePortfolio() {
     const summary = {
         capGain: document.getElementById('sumCapGain').textContent,
         capPct: document.getElementById('sumCapPct').textContent,
+        capCAGR: document.getElementById('sumCapCAGR').textContent,
         divGain: document.getElementById('sumDivGain').textContent,
         divPct: document.getElementById('sumDivPct').textContent,
+        divAnn: document.getElementById('sumDivAnn').textContent,
         totalGain: document.getElementById('sumTotalGain').textContent,
         totalPct: document.getElementById('sumTotalPct').textContent,
         cagr: document.getElementById('sumCAGR').textContent
@@ -740,10 +763,10 @@ async function analyzePortfolio() {
     You are a professional financial analyst. Analyze the following portfolio:
     
     **Performance Breakdown:**
-    - Capital Appreciation: ${summary.capGain} (${summary.capPct})
-    - Dividend Income: ${summary.divGain} (${summary.divPct})
+    - Capital Appreciation: ${summary.capGain} (${summary.capPct}) | ${summary.capCAGR}
+    - Dividend Income: ${summary.divGain} (${summary.divPct}) | ${summary.divAnn}
     - Total Return: ${summary.totalGain} (${summary.totalPct})
-    - CAGR: ${summary.cagr}
+    - ${summary.cagr}
 
     **Holdings:**
     ${rows.map(r => `- ${r.ticker}: Total Return ${r.returnPct} (Divs: ${r.dividends}, Total Gain: ${r.gain})`).join('\n')}
@@ -784,3 +807,5 @@ async function analyzePortfolio() {
 </script>
 </body>
 </html>
+
+
