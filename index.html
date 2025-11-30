@@ -5,13 +5,14 @@
 <title>Portfolio Return Analyzer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 20px; background: #f0f4f8; color: #333; }
   h1 { text-align: center; color: #1a1a1a; margin-bottom: 5px; }
   .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.9em; }
 
   /* Main Layout */
-  .container { max-width: 1250px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+  .container { max-width: 1400px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
 
   /* Global Controls */
   .global-controls { display: flex; gap: 20px; align-items: flex-end; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; flex-wrap: wrap; }
@@ -20,7 +21,7 @@
   
   /* Table */
   .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
-  table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1200px; }
   
   th { 
     text-align: left; 
@@ -34,20 +35,9 @@
   }
   
   /* Sortable Headers */
-  th.sortable {
-    cursor: pointer;
-    transition: background 0.1s;
-  }
-  th.sortable:hover {
-    background-color: #f1f3f5;
-    color: #007bff;
-  }
-  th.sortable::after {
-    content: ' ↕';
-    font-size: 10px;
-    color: #ccc;
-    margin-left: 4px;
-  }
+  th.sortable { cursor: pointer; transition: background 0.1s; }
+  th.sortable:hover { background-color: #f1f3f5; color: #007bff; }
+  th.sortable::after { content: ' ↕'; font-size: 10px; color: #ccc; margin-left: 4px; }
   th.sortable.asc::after { content: ' ↑'; color: #007bff; }
   th.sortable.desc::after { content: ' ↓'; color: #007bff; }
 
@@ -60,11 +50,12 @@
   .ticker-input { text-transform: uppercase; font-weight: bold; width: 70px; }
   .date-input { width: 130px; }
   .num-input { width: 90px; }
-  .price-input { width: 100px; font-weight: 500; }
+  .price-input { width: 90px; font-weight: 500; }
   
   /* Read-only Calculations */
   .calc-val { padding: 8px; font-size: 14px; font-weight: 500; min-width: 80px; display: block; }
   .gain-val { font-weight: 700; }
+  .div-val { color: #28a745; font-size: 13px; }
 
   /* Buttons */
   .btn { padding: 10px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
@@ -72,6 +63,7 @@
   .btn-primary { background: #007bff; color: white; }
   .btn-secondary { background: #6c757d; color: white; }
   .btn-magic { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+  .btn-ai { background: linear-gradient(135deg, #FF4B91 0%, #FF90BC 100%); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 6px; justify-content: center;}
   .btn-csv { background: #28a745; color: white; }
   .btn-add { background: #e9ecef; color: #333; border: 1px solid #ced4da; }
   .btn-remove { background: transparent; color: #dc3545; border: 1px solid transparent; font-size: 18px; padding: 4px 8px; line-height: 1; }
@@ -87,21 +79,38 @@
   }
   .yahoo-link:hover { background: #500095; }
 
-  /* Summary Section - Updated Grid */
+  /* Summary Section */
   .summary-panel { 
     display: grid; 
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
     gap: 15px; 
     margin-top: 20px; 
     padding-top: 20px; 
     border-top: 2px solid #eee; 
   }
-  .summary-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
-  .sum-label { font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 5px; }
-  .sum-value { font-size: 24px; font-weight: 800; color: #333; }
+  .summary-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .sum-label { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 0.5px; }
+  .sum-value { font-size: 20px; font-weight: 800; color: #333; }
+  .sum-sub { font-size: 13px; font-weight: 600; margin-top: 2px; }
   
   .positive { color: #28a745; }
   .negative { color: #dc3545; }
+
+  /* AI Panel */
+  #ai-response-area {
+    margin-top: 20px;
+    padding: 20px;
+    background: #fff0f6;
+    border: 1px solid #ffc9e0;
+    border-radius: 12px;
+    display: none;
+  }
+  #ai-response-content { font-size: 15px; line-height: 1.6; color: #444; }
+  #ai-response-content h2, #ai-response-content h3 { margin-top: 0; color: #d63384; }
+  #ai-response-content strong { color: #333; }
+  .ai-loading { color: #d63384; font-style: italic; animation: pulse 1.5s infinite; }
+  
+  @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
   /* Status Bar */
   #statusMsg { font-size: 13px; margin-left: auto; font-weight: 500; }
@@ -110,7 +119,7 @@
 <body>
 
 <h1>Portfolio Return Analyzer</h1>
-<div class="subtitle">Multi-Stock Tracker • Historical Comparisons • No Key Required</div>
+<div class="subtitle">Multi-Stock Tracker • Dividends Included • Historical Comparisons</div>
 
 <div class="container">
 
@@ -137,7 +146,7 @@
        <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
          <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
          <button class="btn btn-csv" onclick="document.getElementById('csvInput').click()">📂 Import CSV</button>
-         <button class="btn btn-magic" onclick="fetchAllYahoo()">✨ Fetch Prices</button>
+         <button class="btn btn-magic" onclick="fetchAllYahoo()">✨ Fetch Prices & Divs</button>
          <button class="btn btn-primary" onclick="calculateAll()">Recalculate</button>
          <div id="statusMsg"></div>
        </div>
@@ -145,11 +154,21 @@
     
     <div style="font-size:12px;">
       <details>
-        <summary style="cursor:pointer; color:#007bff;">API Settings</summary>
-        <div style="position:absolute; background:white; padding:10px; border:1px solid #ccc; border-radius:4px; box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-top:5px; right: 40px; width:250px; z-index: 10;">
-           <label>FMP Key (Optional)</label>
-           <input type="text" id="apiKey" placeholder="Paste Key Here" style="margin-top:5px;">
-           <button onclick="saveKey()" style="margin-top:5px; font-size:11px; padding:4px;">Save</button>
+        <summary style="cursor:pointer; color:#007bff;">API Settings (FMP & Gemini)</summary>
+        <div style="position:absolute; background:white; padding:15px; border:1px solid #ccc; border-radius:6px; box-shadow:0 4px 15px rgba(0,0,0,0.1); margin-top:5px; right: 40px; width:300px; z-index: 20;">
+           
+           <div style="margin-bottom:10px;">
+             <label>FMP Key (Stock Data)</label>
+             <input type="text" id="apiKey" placeholder="FMP API Key" style="margin-top:2px;">
+           </div>
+           
+           <div style="margin-bottom:10px;">
+             <label>Gemini API Key (AI Analysis)</label>
+             <input type="text" id="geminiKey" placeholder="Gemini API Key (Optional)" style="margin-top:2px;">
+             <small style="color:#666; font-size:10px;">Leave empty if provided by environment.</small>
+           </div>
+
+           <button class="btn btn-primary btn-sm" style="width:100%;" onclick="saveKeys()">Save Keys</button>
         </div>
       </details>
     </div>
@@ -163,12 +182,13 @@
           <th class="sortable" onclick="sortPortfolio('ticker')">Ticker</th>
           <th width="80">Shares</th>
           <th width="140">Start Date</th>
-          <th width="110">Start Price ($)</th>
+          <th width="100">Start Price</th>
           <th class="sortable" onclick="sortPortfolio('initial')">Initial Cost</th>
-          <th width="110">End Price ($)</th>
-          <th class="sortable" onclick="sortPortfolio('final')">Final Value</th>
-          <th class="sortable" onclick="sortPortfolio('gain')">Gain/Loss ($)</th>
-          <th class="sortable" onclick="sortPortfolio('return')">Return %</th>
+          <th width="100">End Price</th>
+          <th class="sortable" onclick="sortPortfolio('final')">Mkt Value</th>
+          <th class="sortable" onclick="sortPortfolio('dividends')">Dividends</th>
+          <th class="sortable" onclick="sortPortfolio('gain')">Total Gain</th>
+          <th class="sortable" onclick="sortPortfolio('return')">Total Return</th>
           <th width="40"></th>
         </tr>
       </thead>
@@ -183,25 +203,53 @@
   <!-- Summary Footer -->
   <div class="summary-panel">
     <div class="summary-card">
-      <div class="sum-label">Total Invested (Start)</div>
+      <div class="sum-label">Cost Basis</div>
       <div class="sum-value" id="sumInitial">$0.00</div>
     </div>
+    
     <div class="summary-card">
-      <div class="sum-label">Total Value (End)</div>
+      <div class="sum-label">Market Value</div>
       <div class="sum-value" id="sumFinal">$0.00</div>
     </div>
-    <div class="summary-card">
-      <div class="sum-label">Total Gain / Loss</div>
-      <div class="sum-value" id="sumGain">$0.00</div>
+
+    <!-- Breakdown: Capital Gains -->
+    <div class="summary-card" style="background:#e8f4fd;">
+      <div class="sum-label">Capital Gain (Price)</div>
+      <div class="sum-value" id="sumCapGain">$0.00</div>
+      <div class="sum-sub" id="sumCapPct">0.00%</div>
     </div>
-    <div class="summary-card" style="background:#e3f2fd;">
-      <div class="sum-label">Total Return %</div>
-      <div class="sum-value" id="sumReturn" style="color:#007bff;">0.00%</div>
+
+    <!-- Breakdown: Dividends -->
+    <div class="summary-card" style="background:#e6fffa;">
+      <div class="sum-label">Dividend Income</div>
+      <div class="sum-value" id="sumDivGain">$0.00</div>
+      <div class="sum-sub" id="sumDivPct">0.00%</div>
     </div>
+
+    <!-- Total -->
+    <div class="summary-card" style="background:#e3f2fd; border:1px solid #b6d4fe;">
+      <div class="sum-label">Total Return (All)</div>
+      <div class="sum-value" id="sumTotalGain">$0.00</div>
+      <div class="sum-sub" id="sumTotalPct">0.00%</div>
+    </div>
+
     <div class="summary-card" style="background:#fff3cd;">
-      <div class="sum-label">Annual Growth (CAGR)</div>
+      <div class="sum-label">CAGR (Annualized)</div>
       <div class="sum-value" id="sumCAGR" style="color:#856404;">0.00%</div>
     </div>
+    
+    <!-- AI Analysis Button -->
+    <div class="summary-card" style="background:#fff0f6; cursor:pointer; border:1px solid #ffc9e0;" onclick="analyzePortfolio()">
+        <div class="sum-label" style="color:#d63384;">AI Insights</div>
+        <div style="font-weight:bold; color:#d63384; display:flex; align-items:center; justify-content:center; gap:5px; margin-top:5px;">
+            <span>✨ Analyze</span>
+        </div>
+    </div>
+  </div>
+
+  <!-- AI Response Container -->
+  <div id="ai-response-area">
+      <div id="ai-response-content"></div>
   </div>
 
 </div>
@@ -210,32 +258,38 @@
 // --- STATE ---
 let rowCount = 0;
 let currentSort = { column: null, direction: 'asc' };
-const defaultTickers = ['AAPL', 'MSFT', 'GOOGL'];
+const defaultTickers = ['AAPL', 'MSFT', 'GOOGL', 'BTI', 'MO'];
 
 // --- INIT ---
 document.getElementById('globalEndDate').value = dayjs().format("YYYY-MM-DD");
-// Default start date (1 year ago)
 document.getElementById('globalStartDate').value = dayjs().subtract(1, 'year').format("YYYY-MM-DD");
 
-const savedKey = localStorage.getItem('fmp_key');
-if(savedKey) document.getElementById('apiKey').value = savedKey;
+// Load Keys
+const savedFMPKey = localStorage.getItem('fmp_key');
+if(savedFMPKey) document.getElementById('apiKey').value = savedFMPKey;
 
-// Add initial rows
+const savedGeminiKey = localStorage.getItem('gemini_key');
+if(savedGeminiKey) document.getElementById('geminiKey').value = savedGeminiKey;
+
 defaultTickers.forEach(t => addRow(t));
 
 // --- FUNCTIONS ---
 
-function saveKey() {
+function saveKeys() {
     localStorage.setItem('fmp_key', document.getElementById('apiKey').value.trim());
-    alert("Key Saved");
+    localStorage.setItem('gemini_key', document.getElementById('geminiKey').value.trim());
+    alert("API Keys Saved");
 }
 
 function updateYahooLink(id) {
     const row = document.getElementById(`row-${id}`);
-    const ticker = row.querySelector('.ticker-input').value.toUpperCase();
+    const input = row.querySelector('.ticker-input');
+    let val = input.value.toUpperCase().replace(/\s/g, '');
+    if(input.value !== val) input.value = val;
+    
     const link = row.querySelector('.yahoo-link');
-    if(ticker) {
-        link.href = `https://finance.yahoo.com/quote/${ticker}`;
+    if(val) {
+        link.href = `https://finance.yahoo.com/quote/${val}`;
         link.style.display = 'flex';
     } else {
         link.style.display = 'none';
@@ -249,7 +303,6 @@ function applyGlobalStart() {
     const rows = document.querySelectorAll('#tableBody tr');
     rows.forEach(tr => {
         tr.querySelector('.start-date').value = globalDate;
-        // Visual feedback
         const dateInput = tr.querySelector('.start-date');
         dateInput.style.backgroundColor = "#e2e6ea";
         setTimeout(() => dateInput.style.backgroundColor = "", 500);
@@ -261,8 +314,9 @@ function addRow(ticker = '', initialShares = 10) {
     const tbody = document.getElementById('tableBody');
     const tr = document.createElement('tr');
     tr.id = `row-${rowCount}`;
+    tr.dataset.divPerShare = "0"; 
     
-    // Default Start Date: Use global if set, otherwise 1 Year Ago
+    ticker = ticker.toUpperCase().replace(/\s/g, '');
     let startDateVal = document.getElementById('globalStartDate').value;
     if(!startDateVal) startDateVal = dayjs().subtract(1, 'year').format("YYYY-MM-DD");
 
@@ -270,7 +324,7 @@ function addRow(ticker = '', initialShares = 10) {
       <td>
         <div style="display:flex; align-items:center; gap:6px;">
           <input type="text" class="ticker-input" value="${ticker}" placeholder="SYM" 
-                 oninput="this.value = this.value.toUpperCase(); updateYahooLink(${rowCount})">
+                 oninput="updateYahooLink(${rowCount})">
           <a href="https://finance.yahoo.com/quote/${ticker}" target="_blank" class="yahoo-link" title="Open Yahoo Finance">Y!</a>
         </div>
       </td>
@@ -280,12 +334,13 @@ function addRow(ticker = '', initialShares = 10) {
       <td><span class="calc-val val-initial">$0.00</span></td>
       <td><input type="number" class="price-input end-price" placeholder="0.00" step="0.01" oninput="calcRow(${rowCount})"></td>
       <td><span class="calc-val val-final">$0.00</span></td>
+      <td><span class="calc-val div-val" title="Total cash dividends collected">$0.00</span></td>
       <td><span class="calc-val gain-val" style="color:#ccc;">$0.00</span></td>
       <td><span class="calc-val pct-val" style="color:#ccc;">0%</span></td>
       <td><button class="btn btn-remove" onclick="removeRow(${rowCount})">&times;</button></td>
     `;
     tbody.appendChild(tr);
-    calcRow(rowCount); // Init zeros
+    calcRow(rowCount);
 }
 
 function removeRow(id) {
@@ -299,52 +354,39 @@ function sortPortfolio(column) {
     const tbody = document.getElementById('tableBody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
     
-    // Toggle direction
     if (currentSort.column === column) {
         currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
     } else {
         currentSort.column = column;
-        // Default sort direction: descending for numbers, ascending for text
         currentSort.direction = (column === 'ticker') ? 'asc' : 'desc';
     }
 
-    // Sort Rows
     rows.sort((a, b) => {
         let valA, valB;
-
         if (column === 'ticker') {
             valA = a.querySelector('.ticker-input').value.toUpperCase();
             valB = b.querySelector('.ticker-input').value.toUpperCase();
             return currentSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
         } else {
-            // Numeric Sorts
-            if (column === 'initial') {
-                valA = parseMoney(a.querySelector('.val-initial').textContent);
-                valB = parseMoney(b.querySelector('.val-initial').textContent);
-            } else if (column === 'final') {
-                valA = parseMoney(a.querySelector('.val-final').textContent);
-                valB = parseMoney(b.querySelector('.val-final').textContent);
-            } else if (column === 'gain') {
-                valA = parseMoney(a.querySelector('.gain-val').textContent);
-                valB = parseMoney(b.querySelector('.gain-val').textContent);
-            } else if (column === 'return') {
-                valA = parseFloat(a.querySelector('.pct-val').textContent);
-                valB = parseFloat(b.querySelector('.pct-val').textContent);
-            }
+            if (column === 'initial') valA = parseMoney(a.querySelector('.val-initial').textContent);
+            else if (column === 'final') valA = parseMoney(a.querySelector('.val-final').textContent);
+            else if (column === 'dividends') valA = parseMoney(a.querySelector('.div-val').textContent);
+            else if (column === 'gain') valA = parseMoney(a.querySelector('.gain-val').textContent);
+            else if (column === 'return') valA = parseFloat(a.querySelector('.pct-val').textContent);
             
+            if (column === 'initial') valB = parseMoney(b.querySelector('.val-initial').textContent);
+            else if (column === 'final') valB = parseMoney(b.querySelector('.val-final').textContent);
+            else if (column === 'dividends') valB = parseMoney(b.querySelector('.div-val').textContent);
+            else if (column === 'gain') valB = parseMoney(b.querySelector('.gain-val').textContent);
+            else if (column === 'return') valB = parseFloat(b.querySelector('.pct-val').textContent);
+
             return currentSort.direction === 'asc' ? valA - valB : valB - valA;
         }
     });
 
-    // Re-append sorted rows
     rows.forEach(row => tbody.appendChild(row));
 
-    // Update Header Indicators
-    document.querySelectorAll('th.sortable').forEach(th => {
-        th.classList.remove('asc', 'desc');
-    });
-    // Find the header matching the column and add class
-    // Using mapping based on index or onclick content is tricky, let's look at onclick attr
+    document.querySelectorAll('th.sortable').forEach(th => { th.classList.remove('asc', 'desc'); });
     const targetTh = Array.from(document.querySelectorAll('th.sortable')).find(th => 
         th.getAttribute('onclick').includes(`'${column}'`)
     );
@@ -355,48 +397,35 @@ function parseMoney(str) {
     return parseFloat(str.replace(/[^0-9.-]/g, '')) || 0;
 }
 
-// --- CSV IMPORT LOGIC ---
-
+// --- CSV IMPORT ---
 function handleFileSelect(evt) {
     const file = evt.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = function(e) {
-        processCSV(e.target.result);
-        evt.target.value = '';
-    };
+    reader.onload = function(e) { processCSV(e.target.result); evt.target.value = ''; };
     reader.readAsText(file);
 }
 
 function processCSV(text) {
     const lines = text.split(/\r\n|\n/);
     let addedCount = 0;
-
     lines.forEach(line => {
         if (!line.trim()) return;
         const parts = parseCSVLine(line);
         if(parts.length < 2) return;
         
-        const ticker = parts[0].trim().replace(/^"|"$/g, '').toUpperCase();
+        const ticker = parts[0].trim().replace(/^"|"$/g, '').toUpperCase().replace(/\s/g, '');
         if(ticker.includes("TICKER")) return;
         
         let sharesStr = parts[1].trim().replace(/^"|"$/g, '').replace(/,/g, ''); 
         const shares = parseFloat(sharesStr);
-        
-        if (ticker && !isNaN(shares)) {
-            addRow(ticker, shares);
-            addedCount++;
-        }
+        if (ticker && !isNaN(shares)) { addRow(ticker, shares); addedCount++; }
     });
-    
     if(addedCount > 0) {
         document.getElementById('statusMsg').textContent = `Imported ${addedCount} stocks.`;
         document.getElementById('statusMsg').style.color = "green";
         calculateAll();
-    } else {
-        alert("No valid stock data found in CSV.");
-    }
+    } else { alert("No valid stock data found in CSV."); }
 }
 
 function parseCSVLine(text) {
@@ -406,18 +435,14 @@ function parseCSVLine(text) {
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
         if (char === '"') inQuote = !inQuote;
-        else if (char === ',' && !inQuote) {
-            result.push(current);
-            current = '';
-        } else current += char;
+        else if (char === ',' && !inQuote) { result.push(current); current = ''; } 
+        else current += char;
     }
     result.push(current);
     return result;
 }
 
-
-// --- CALCULATION LOGIC ---
-
+// --- CALCULATION ---
 function calcRow(id) {
     const row = document.getElementById(`row-${id}`);
     if(!row) return;
@@ -425,25 +450,30 @@ function calcRow(id) {
     const shares = parseFloat(row.querySelector('.num-input').value) || 0;
     const startPrice = parseFloat(row.querySelector('.start-price').value) || 0;
     const endPrice = parseFloat(row.querySelector('.end-price').value) || 0;
+    const divPerShare = parseFloat(row.dataset.divPerShare) || 0;
 
     const initialVal = shares * startPrice;
     const finalVal = shares * endPrice;
-    const gain = finalVal - initialVal;
-    const pct = initialVal > 0 ? (gain / initialVal) * 100 : 0;
+    const totalDividends = shares * divPerShare;
+    
+    // Total Gain = (Final Value + Dividends) - Initial Cost
+    const totalGain = (finalVal + totalDividends) - initialVal;
+    
+    // Percentage Return based on total gain vs initial
+    const pct = initialVal > 0 ? (totalGain / initialVal) * 100 : 0;
 
-    // Update Row UI
     row.querySelector('.val-initial').textContent = fmtMoney(initialVal);
     row.querySelector('.val-final').textContent = fmtMoney(finalVal);
+    row.querySelector('.div-val').textContent = fmtMoney(totalDividends);
     
     const gainEl = row.querySelector('.gain-val');
-    gainEl.textContent = (gain >= 0 ? "+" : "") + fmtMoney(gain);
-    gainEl.className = "calc-val gain-val " + (gain >= 0 ? "positive" : "negative");
+    gainEl.textContent = (totalGain >= 0 ? "+" : "") + fmtMoney(totalGain);
+    gainEl.className = "calc-val gain-val " + (totalGain >= 0 ? "positive" : "negative");
 
     const pctEl = row.querySelector('.pct-val');
     pctEl.textContent = pct.toFixed(2) + "%";
-    pctEl.className = "calc-val pct-val " + (gain >= 0 ? "positive" : "negative");
+    pctEl.className = "calc-val pct-val " + (totalGain >= 0 ? "positive" : "negative");
 
-    // Trigger global calc
     updateSummary();
 }
 
@@ -457,8 +487,9 @@ function calculateAll() {
 
 function updateSummary() {
     let totalInitial = 0;
-    let totalFinal = 0;
-    let weightedTimeAccumulator = 0; // Cost * Years
+    let totalMarketVal = 0; // Current market value of shares only
+    let totalDividends = 0;
+    let weightedTimeAccumulator = 0; 
     
     const globalEndDateStr = document.getElementById('globalEndDate').value;
     const globalEndDate = dayjs(globalEndDateStr);
@@ -468,15 +499,16 @@ function updateSummary() {
         const shares = parseFloat(tr.querySelector('.num-input').value) || 0;
         const sP = parseFloat(tr.querySelector('.start-price').value) || 0;
         const eP = parseFloat(tr.querySelector('.end-price').value) || 0;
+        const dPS = parseFloat(tr.dataset.divPerShare) || 0;
         
         const initial = shares * sP;
+        const final = shares * eP;
+        const divs = shares * dPS;
         
-        // Accumulate totals
         totalInitial += initial;
-        totalFinal += (shares * eP);
+        totalMarketVal += final;
+        totalDividends += divs;
         
-        // Calculate Weighted Time for CAGR
-        // Get this row's start date
         const rowStartDateVal = tr.querySelector('.start-date').value;
         if(rowStartDateVal && globalEndDateStr && initial > 0) {
             const sDate = dayjs(rowStartDateVal);
@@ -486,38 +518,54 @@ function updateSummary() {
         }
     });
 
-    const totalGain = totalFinal - totalInitial;
-    const totalReturn = totalInitial > 0 ? (totalGain / totalInitial) * 100 : 0;
+    // Breakdown Calculations
+    const capitalGain = totalMarketVal - totalInitial;
+    const totalGain = capitalGain + totalDividends;
     
-    // Calculate Weighted Average Years
+    // Percentages
+    const capReturnPct = totalInitial > 0 ? (capitalGain / totalInitial) * 100 : 0;
+    const divReturnPct = totalInitial > 0 ? (totalDividends / totalInitial) * 100 : 0;
+    const totalReturnPct = totalInitial > 0 ? (totalGain / totalInitial) * 100 : 0;
+
+    // CAGR
     const avgYears = totalInitial > 0 ? weightedTimeAccumulator / totalInitial : 0;
-    
-    // Calculate Portfolio CAGR
-    // Formula: (Final / Initial)^(1/years) - 1
     let cagr = 0;
-    if(totalInitial > 0 && totalFinal > 0 && avgYears > 0.01) {
-        cagr = (Math.pow((totalFinal / totalInitial), (1 / avgYears)) - 1) * 100;
-    } else if (totalInitial > 0 && totalFinal > 0 && avgYears <= 0.01) {
-        // Fallback for very short periods to avoid infinity
-        // Or simply show simple return if time < 4 days
-        cagr = totalReturn; 
+    // For CAGR, we use the Total Ending Value (Market + Reinvested Dividends assumption) vs Initial
+    const totalEndValue = totalMarketVal + totalDividends;
+    
+    if(totalInitial > 0 && totalEndValue > 0 && avgYears > 0.01) {
+        cagr = (Math.pow((totalEndValue / totalInitial), (1 / avgYears)) - 1) * 100;
+    } else if (totalInitial > 0 && avgYears <= 0.01) {
+        cagr = totalReturnPct; 
     }
 
-    // Display Updates
+    // UI Updates
     document.getElementById('sumInitial').textContent = fmtMoney(totalInitial);
-    document.getElementById('sumFinal').textContent = fmtMoney(totalFinal);
+    document.getElementById('sumFinal').textContent = fmtMoney(totalMarketVal);
     
-    const gainEl = document.getElementById('sumGain');
-    gainEl.textContent = (totalGain >= 0 ? "+" : "") + fmtMoney(totalGain);
-    gainEl.className = "sum-value " + (totalGain >= 0 ? "positive" : "negative");
+    // Capital Gains
+    const capGainEl = document.getElementById('sumCapGain');
+    capGainEl.textContent = (capitalGain >= 0 ? "+" : "") + fmtMoney(capitalGain);
+    capGainEl.className = "sum-value " + (capitalGain >= 0 ? "positive" : "negative");
+    document.getElementById('sumCapPct').textContent = capReturnPct.toFixed(2) + "%";
+    document.getElementById('sumCapPct').className = "sum-sub " + (capReturnPct >= 0 ? "positive" : "negative");
 
-    const retEl = document.getElementById('sumReturn');
-    retEl.textContent = totalReturn.toFixed(2) + "%";
-    retEl.className = "sum-value " + (totalReturn >= 0 ? "positive" : "negative");
+    // Dividends
+    const divGainEl = document.getElementById('sumDivGain');
+    divGainEl.textContent = "+" + fmtMoney(totalDividends);
+    divGainEl.className = "sum-value positive";
+    document.getElementById('sumDivPct').textContent = divReturnPct.toFixed(2) + "% Yield";
+    document.getElementById('sumDivPct').className = "sum-sub positive";
+
+    // Total Return
+    const totalGainEl = document.getElementById('sumTotalGain');
+    totalGainEl.textContent = (totalGain >= 0 ? "+" : "") + fmtMoney(totalGain);
+    totalGainEl.className = "sum-value " + (totalGain >= 0 ? "positive" : "negative");
+    document.getElementById('sumTotalPct').textContent = totalReturnPct.toFixed(2) + "%";
+    document.getElementById('sumTotalPct').className = "sum-sub " + (totalReturnPct >= 0 ? "positive" : "negative");
     
     const cagrEl = document.getElementById('sumCAGR');
     cagrEl.textContent = cagr.toFixed(2) + "%";
-    // Color code CAGR nicely
     cagrEl.className = "sum-value " + (cagr >= 0 ? "positive" : "negative");
 }
 
@@ -525,7 +573,7 @@ function fmtMoney(n) {
     return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// --- FETCH LOGIC (YAHOO PROXY - BATCH) ---
+// --- FETCH LOGIC ---
 
 async function fetchAllYahoo() {
     const rows = document.querySelectorAll('#tableBody tr');
@@ -537,88 +585,110 @@ async function fetchAllYahoo() {
     status.textContent = "Fetching...";
     status.style.color = "blue";
 
-    // Process Sequentially to avoid overwhelming proxy
     for (const tr of rows) {
-        const ticker = tr.querySelector('.ticker-input').value.toUpperCase();
+        const ticker = tr.querySelector('.ticker-input').value.toUpperCase().replace(/\s/g, ''); 
         if(!ticker) continue;
-        
         const startDate = tr.querySelector('.start-date').value;
         const id = tr.id.split('-')[1];
 
-        // Highlight Row
         tr.style.backgroundColor = "#f0f8ff";
-
         try {
-            await fetchRowYahoo(tr, ticker, startDate, endDate);
-        } catch(err) {
-            console.error(`Failed ${ticker}:`, err);
-        }
-
-        // Unhighlight
+            await fetchRowYahooAdaptive(tr, ticker, startDate, endDate);
+        } catch(err) { console.error(`Failed ${ticker}:`, err); }
         tr.style.backgroundColor = "";
         calcRow(id);
-        
-        // Small delay
         await new Promise(r => setTimeout(r, 200)); 
     }
-    
     status.textContent = "Done!";
     status.style.color = "green";
     setTimeout(() => status.textContent = "", 3000);
 }
 
-async function fetchRowYahoo(tr, ticker, d1, d2) {
-    // UPDATED: Using range=max to ensure we can get prices further back than 10 years
-    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=max`;
-    const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(targetUrl);
+// Adaptive Strategy
+async function fetchRowYahooAdaptive(tr, ticker, d1, d2) {
+    const ranges = ['20y', '10y', '5y', '2y'];
     
-    const res = await fetch(proxyUrl);
-    if(!res.ok) return; // Skip silently on fail
-    
-    const json = await res.json();
-    const result = json.chart.result?.[0];
-    if(!result) return;
+    const tryFetch = async (range) => {
+        // Query string includes events=div|split to ensure dividends are returned
+        const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=${range}&events=div|split`;
+        const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(targetUrl);
+        const res = await fetch(proxyUrl);
+        if(!res.ok) throw new Error("HTTP " + res.status);
+        const json = await res.json();
+        const result = json.chart.result?.[0];
+        if(!result) throw new Error("No Data");
+        return result;
+    };
 
-    const timestamps = result.timestamp;
-    const quotes = result.indicators.quote[0].close;
+    let result = null;
+    for (const range of ranges) {
+        try { result = await tryFetch(range); break; } 
+        catch (e) { console.warn(`Fetch ${ticker} failed for ${range}, trying shorter...`); }
+    }
+
+    if (!result) {
+        tr.querySelector('.ticker-input').style.borderColor = "red";
+        return; 
+    } else {
+        tr.querySelector('.ticker-input').style.borderColor = "";
+    }
+
+    const timestamps = result.timestamp || [];
+    const quotes = result.indicators.quote[0].close || [];
+    
+    // Parse Dividends
+    const dividendsObj = result.events ? result.events.dividends : {};
+    let totalDividendsPerShare = 0;
+    const startTs = d1 ? dayjs(d1).unix() : 0;
+    const endTs = d2 ? dayjs(d2).unix() : Infinity;
+
+    if (dividendsObj) {
+        Object.values(dividendsObj).forEach(div => {
+            if (div.date >= startTs && div.date <= endTs) {
+                totalDividendsPerShare += div.amount;
+            }
+        });
+    }
+    
+    // Store div per share
+    tr.dataset.divPerShare = totalDividendsPerShare;
 
     const findPrice = (dateStr) => {
+        if(!dateStr) return null;
         const targetTime = dayjs(dateStr).unix();
         let closestPrice = null;
         let minDiff = Infinity;
         
-        // Loop backwards
         for(let i = timestamps.length - 1; i >= 0; i--) {
             const diff = Math.abs(timestamps[i] - targetTime);
-            // Within 4 days
-            if(diff < 345600) { 
-                if(diff < minDiff) {
+            if(diff < 1209600) { // 14 days
+                if(diff < minDiff && quotes[i] != null) {
                     minDiff = diff;
                     closestPrice = quotes[i];
                 }
             }
-            // Optimization: if we are more than 5 days past target time, we can stop searching backwards
-            if(timestamps[i] < targetTime - 432000) break;
+            if(timestamps[i] < targetTime - 1300000) break;
         }
         return closestPrice;
     };
 
-    // 1. Start Price
+    const markError = (el) => {
+        el.style.backgroundColor = "#f8d7da"; el.style.borderColor = "#dc3545"; el.title = "Data unavailable";
+    };
+    const markSuccess = (el) => {
+        el.style.backgroundColor = ""; el.style.borderColor = ""; el.title = ""; flash(el);
+    };
+
     if(d1) {
         const p1 = findPrice(d1);
-        if(p1) {
-            tr.querySelector('.start-price').value = p1.toFixed(2);
-            flash(tr.querySelector('.start-price'));
-        }
+        const el = tr.querySelector('.start-price');
+        if(p1) { el.value = p1.toFixed(2); markSuccess(el); } else { markError(el); }
     }
 
-    // 2. End Price
     if(d2) {
         const p2 = findPrice(d2);
-        if(p2) {
-            tr.querySelector('.end-price').value = p2.toFixed(2);
-            flash(tr.querySelector('.end-price'));
-        }
+        const el = tr.querySelector('.end-price');
+        if(p2) { el.value = p2.toFixed(2); markSuccess(el); } else { markError(el); }
     }
 }
 
@@ -627,6 +697,90 @@ function flash(el) {
     setTimeout(() => el.style.backgroundColor = "", 1000);
 }
 
+// --- GEMINI AI INTEGRATION ---
+
+async function analyzePortfolio() {
+    const aiKeyInput = document.getElementById('geminiKey').value.trim();
+    const apiKey = aiKeyInput || "";
+    
+    if(!apiKey) {
+        const proceed = confirm("No Gemini API Key entered. Proceed?");
+        if(!proceed) return;
+    }
+
+    const aiDiv = document.getElementById('ai-response-area');
+    const contentDiv = document.getElementById('ai-response-content');
+    
+    aiDiv.style.display = 'block';
+    contentDiv.innerHTML = '<div class="ai-loading">✨ Analyzing...</div>';
+    
+    // 1. Gather Data
+    const rows = Array.from(document.querySelectorAll('#tableBody tr')).map(tr => {
+        return {
+            ticker: tr.querySelector('.ticker-input').value,
+            shares: tr.querySelector('.num-input').value,
+            dividends: tr.querySelector('.div-val').textContent,
+            gain: tr.querySelector('.gain-val').textContent,
+            returnPct: tr.querySelector('.pct-val').textContent
+        };
+    }).filter(r => r.ticker);
+
+    const summary = {
+        capGain: document.getElementById('sumCapGain').textContent,
+        capPct: document.getElementById('sumCapPct').textContent,
+        divGain: document.getElementById('sumDivGain').textContent,
+        divPct: document.getElementById('sumDivPct').textContent,
+        totalGain: document.getElementById('sumTotalGain').textContent,
+        totalPct: document.getElementById('sumTotalPct').textContent,
+        cagr: document.getElementById('sumCAGR').textContent
+    };
+
+    // 2. Construct Prompt
+    const promptText = `
+    You are a professional financial analyst. Analyze the following portfolio:
+    
+    **Performance Breakdown:**
+    - Capital Appreciation: ${summary.capGain} (${summary.capPct})
+    - Dividend Income: ${summary.divGain} (${summary.divPct})
+    - Total Return: ${summary.totalGain} (${summary.totalPct})
+    - CAGR: ${summary.cagr}
+
+    **Holdings:**
+    ${rows.map(r => `- ${r.ticker}: Total Return ${r.returnPct} (Divs: ${r.dividends}, Total Gain: ${r.gain})`).join('\n')}
+
+    **Instructions:**
+    1. Executive Summary: Comment on the balance between growth (capital gains) and income (dividends).
+    2. Best/Worst Performers.
+    3. Risk/Sector Analysis.
+    4. Keep it under 250 words. Professional tone.
+    `;
+
+    // 3. Call Gemini API
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: promptText }] }]
+            })
+        });
+
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        
+        const data = await response.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (rawText) {
+            contentDiv.innerHTML = marked.parse(rawText);
+        } else {
+            throw new Error("No response text generated.");
+        }
+
+    } catch (err) {
+        console.error("Gemini Error:", err);
+        contentDiv.innerHTML = `<span style="color:red;">Error: ${err.message}</span>`;
+    }
+}
 </script>
 </body>
 </html>
