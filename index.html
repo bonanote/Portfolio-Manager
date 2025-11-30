@@ -12,7 +12,7 @@
   .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.9em; }
 
   /* Main Layout */
-  .container { max-width: 1450px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+  .container { max-width: 1500px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
 
   /* Global Controls */
   .global-controls { display: flex; gap: 20px; align-items: flex-end; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; flex-wrap: wrap; }
@@ -21,7 +21,7 @@
   
   /* Table */
   .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
-  table { width: 100%; border-collapse: collapse; min-width: 1300px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1400px; }
   
   th { 
     text-align: left; 
@@ -56,7 +56,7 @@
   .calc-val { padding: 8px; font-size: 14px; font-weight: 500; min-width: 80px; display: block; }
   .gain-val { font-weight: 700; }
   .div-val { color: #28a745; font-size: 13px; }
-  .div-growth { font-size: 12px; color: #666; }
+  .growth-val { font-size: 12px; color: #666; font-weight: 600; }
 
   /* Buttons */
   .btn { padding: 10px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
@@ -64,7 +64,7 @@
   .btn-primary { background: #007bff; color: white; }
   .btn-secondary { background: #6c757d; color: white; }
   .btn-magic { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-  .btn-ai { background: linear-gradient(135deg, #FF4B91 0%, #FF90BC 100%); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 6px; justify-content: center;}
+  .btn-export { background: #17a2b8; color: white; }
   .btn-csv { background: #28a745; color: white; }
   .btn-add { background: #e9ecef; color: #333; border: 1px solid #ced4da; }
   .btn-remove { background: transparent; color: #dc3545; border: 1px solid transparent; font-size: 18px; padding: 4px 8px; line-height: 1; }
@@ -150,6 +150,7 @@
          <button class="btn btn-csv" onclick="document.getElementById('csvInput').click()">📂 Import CSV</button>
          <button class="btn btn-magic" onclick="fetchAllYahoo()">✨ Fetch Prices & Divs</button>
          <button class="btn btn-primary" onclick="calculateAll()">Recalculate</button>
+         <button class="btn btn-export" onclick="downloadCSV()">📥 Export Data</button>
          <div id="statusMsg"></div>
        </div>
     </div>
@@ -190,6 +191,7 @@
           <th class="sortable" onclick="sortPortfolio('final')">Mkt Value</th>
           <th class="sortable" onclick="sortPortfolio('dividends')">Total Divs</th>
           <th class="sortable" onclick="sortPortfolio('divGrowth')">Div Growth</th>
+          <th class="sortable" onclick="sortPortfolio('capGrowth')">Price Growth</th>
           <th class="sortable" onclick="sortPortfolio('gain')">Total Gain</th>
           <th class="sortable" onclick="sortPortfolio('return')">Total Return</th>
           <th width="40"></th>
@@ -318,7 +320,8 @@ function addRow(ticker = '', initialShares = 10) {
     const tr = document.createElement('tr');
     tr.id = `row-${rowCount}`;
     tr.dataset.divPerShare = "0"; 
-    tr.dataset.divGrowth = "0"; // Store div CAGR
+    tr.dataset.divGrowth = "0"; 
+    tr.dataset.capGrowth = "0"; // Store Cap CAGR
     
     ticker = ticker.toUpperCase().replace(/\s/g, '');
     let startDateVal = document.getElementById('globalStartDate').value;
@@ -339,7 +342,8 @@ function addRow(ticker = '', initialShares = 10) {
       <td><input type="number" class="price-input end-price" placeholder="0.00" step="0.01" oninput="calcRow(${rowCount})"></td>
       <td><span class="calc-val val-final">$0.00</span></td>
       <td><span class="calc-val div-val" title="Total cash dividends collected">$0.00</span></td>
-      <td><span class="calc-val div-growth">-</span></td>
+      <td><span class="calc-val growth-val div-growth">-</span></td>
+      <td><span class="calc-val growth-val cap-growth">-</span></td>
       <td><span class="calc-val gain-val" style="color:#ccc;">$0.00</span></td>
       <td><span class="calc-val pct-val" style="color:#ccc;">0%</span></td>
       <td><button class="btn btn-remove" onclick="removeRow(${rowCount})">&times;</button></td>
@@ -377,6 +381,7 @@ function sortPortfolio(column) {
             else if (column === 'final') valA = parseMoney(a.querySelector('.val-final').textContent);
             else if (column === 'dividends') valA = parseMoney(a.querySelector('.div-val').textContent);
             else if (column === 'divGrowth') valA = parseFloat(a.dataset.divGrowth) || 0;
+            else if (column === 'capGrowth') valA = parseFloat(a.dataset.capGrowth) || 0;
             else if (column === 'gain') valA = parseMoney(a.querySelector('.gain-val').textContent);
             else if (column === 'return') valA = parseFloat(a.querySelector('.pct-val').textContent);
             
@@ -384,6 +389,7 @@ function sortPortfolio(column) {
             else if (column === 'final') valB = parseMoney(b.querySelector('.val-final').textContent);
             else if (column === 'dividends') valB = parseMoney(b.querySelector('.div-val').textContent);
             else if (column === 'divGrowth') valB = parseFloat(b.dataset.divGrowth) || 0;
+            else if (column === 'capGrowth') valB = parseFloat(b.dataset.capGrowth) || 0;
             else if (column === 'gain') valB = parseMoney(b.querySelector('.gain-val').textContent);
             else if (column === 'return') valB = parseFloat(b.querySelector('.pct-val').textContent);
 
@@ -449,6 +455,47 @@ function parseCSVLine(text) {
     return result;
 }
 
+// --- CSV EXPORT ---
+function downloadCSV() {
+    const rows = Array.from(document.querySelectorAll('#tableBody tr'));
+    if (rows.length === 0) { alert("No data to export"); return; }
+
+    const headers = [
+        "Ticker", "Shares", "Start Date", "Start Price", "Initial Cost", 
+        "End Price", "Final Value", "Total Dividends", "Div Growth %", 
+        "Price Growth %", "Total Gain", "Total Return %"
+    ];
+
+    const csvContent = [headers.join(",")];
+
+    rows.forEach(tr => {
+        const rowData = [
+            tr.querySelector('.ticker-input').value,
+            tr.querySelector('.num-input').value,
+            tr.querySelector('.start-date').value,
+            tr.querySelector('.start-price').value,
+            tr.querySelector('.val-initial').textContent.replace(/[$,]/g, ''),
+            tr.querySelector('.end-price').value,
+            tr.querySelector('.val-final').textContent.replace(/[$,]/g, ''),
+            tr.querySelector('.div-val').textContent.replace(/[$,]/g, ''),
+            tr.dataset.divGrowth || 0,
+            tr.dataset.capGrowth || 0,
+            tr.querySelector('.gain-val').textContent.replace(/[$,+]/g, ''),
+            tr.querySelector('.pct-val').textContent.replace(/%/g, '')
+        ];
+        csvContent.push(rowData.join(","));
+    });
+
+    const blob = new Blob([csvContent.join("\n")], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `portfolio_analysis_${dayjs().format('YYYY-MM-DD')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
 // --- CALCULATION ---
 function calcRow(id) {
     const row = document.getElementById(`row-${id}`);
@@ -457,6 +504,7 @@ function calcRow(id) {
     const shares = parseFloat(row.querySelector('.num-input').value) || 0;
     const startPrice = parseFloat(row.querySelector('.start-price').value) || 0;
     const endPrice = parseFloat(row.querySelector('.end-price').value) || 0;
+    const startDate = row.querySelector('.start-date').value;
     const divPerShare = parseFloat(row.dataset.divPerShare) || 0;
     const divGrowth = parseFloat(row.dataset.divGrowth) || 0;
 
@@ -467,6 +515,19 @@ function calcRow(id) {
     // Total Gain = (Final Value + Dividends) - Initial Cost
     const totalGain = (finalVal + totalDividends) - initialVal;
     const pct = initialVal > 0 ? (totalGain / initialVal) * 100 : 0;
+
+    // Calculate Capital CAGR
+    let capGrowth = 0;
+    if (startDate && startPrice > 0 && endPrice > 0) {
+        const endDateStr = document.getElementById('globalEndDate').value;
+        const years = dayjs(endDateStr).diff(dayjs(startDate), 'year', true);
+        if (years > 0.01) {
+            capGrowth = (Math.pow((endPrice / startPrice), (1 / years)) - 1) * 100;
+        }
+    }
+    
+    // Store calc
+    row.dataset.capGrowth = capGrowth;
 
     row.querySelector('.val-initial').textContent = fmtMoney(initialVal);
     row.querySelector('.val-final').textContent = fmtMoney(finalVal);
@@ -480,6 +541,16 @@ function calcRow(id) {
     } else {
         divGrowthEl.textContent = "-";
         divGrowthEl.style.color = "#666";
+    }
+
+    // Display Capital Growth
+    const capGrowthEl = row.querySelector('.cap-growth');
+    if (capGrowth !== 0 && !isNaN(capGrowth)) {
+        capGrowthEl.textContent = capGrowth.toFixed(1) + "%";
+        capGrowthEl.style.color = capGrowth >= 0 ? "#198754" : "#dc3545";
+    } else {
+        capGrowthEl.textContent = "-";
+        capGrowthEl.style.color = "#666";
     }
     
     const gainEl = row.querySelector('.gain-val');
