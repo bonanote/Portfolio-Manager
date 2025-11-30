@@ -12,7 +12,7 @@
   .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.9em; }
 
   /* Main Layout */
-  .container { max-width: 1400px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+  .container { max-width: 1450px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
 
   /* Global Controls */
   .global-controls { display: flex; gap: 20px; align-items: flex-end; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; flex-wrap: wrap; }
@@ -21,7 +21,7 @@
   
   /* Table */
   .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
-  table { width: 100%; border-collapse: collapse; min-width: 1200px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1300px; }
   
   th { 
     text-align: left; 
@@ -56,6 +56,7 @@
   .calc-val { padding: 8px; font-size: 14px; font-weight: 500; min-width: 80px; display: block; }
   .gain-val { font-weight: 700; }
   .div-val { color: #28a745; font-size: 13px; }
+  .div-growth { font-size: 12px; color: #666; }
 
   /* Buttons */
   .btn { padding: 10px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
@@ -187,7 +188,8 @@
           <th class="sortable" onclick="sortPortfolio('initial')">Initial Cost</th>
           <th width="100">End Price</th>
           <th class="sortable" onclick="sortPortfolio('final')">Mkt Value</th>
-          <th class="sortable" onclick="sortPortfolio('dividends')">Dividends</th>
+          <th class="sortable" onclick="sortPortfolio('dividends')">Total Divs</th>
+          <th class="sortable" onclick="sortPortfolio('divGrowth')">Div Growth</th>
           <th class="sortable" onclick="sortPortfolio('gain')">Total Gain</th>
           <th class="sortable" onclick="sortPortfolio('return')">Total Return</th>
           <th width="40"></th>
@@ -226,7 +228,8 @@
       <div class="sum-label">Dividend Income</div>
       <div class="sum-value" id="sumDivGain">$0.00</div>
       <div class="sum-sub" id="sumDivPct">0.00%</div>
-      <div class="sum-sub-small" id="sumDivAnn" title="Annualized Yield">Ann. Yield: 0.0%</div>
+      <div class="sum-sub-small" id="sumDivYield" title="Annualized Yield">Avg Yield: 0.0%</div>
+      <div class="sum-sub-small" id="sumDivGrowth" style="color:#198754;" title="Weighted Average Dividend Growth">Avg Growth: 0.0%</div>
     </div>
 
     <!-- Total -->
@@ -314,6 +317,7 @@ function addRow(ticker = '', initialShares = 10) {
     const tr = document.createElement('tr');
     tr.id = `row-${rowCount}`;
     tr.dataset.divPerShare = "0"; 
+    tr.dataset.divGrowth = "0"; // Store div CAGR
     
     ticker = ticker.toUpperCase().replace(/\s/g, '');
     let startDateVal = document.getElementById('globalStartDate').value;
@@ -334,6 +338,7 @@ function addRow(ticker = '', initialShares = 10) {
       <td><input type="number" class="price-input end-price" placeholder="0.00" step="0.01" oninput="calcRow(${rowCount})"></td>
       <td><span class="calc-val val-final">$0.00</span></td>
       <td><span class="calc-val div-val" title="Total cash dividends collected">$0.00</span></td>
+      <td><span class="calc-val div-growth">-</span></td>
       <td><span class="calc-val gain-val" style="color:#ccc;">$0.00</span></td>
       <td><span class="calc-val pct-val" style="color:#ccc;">0%</span></td>
       <td><button class="btn btn-remove" onclick="removeRow(${rowCount})">&times;</button></td>
@@ -370,12 +375,14 @@ function sortPortfolio(column) {
             if (column === 'initial') valA = parseMoney(a.querySelector('.val-initial').textContent);
             else if (column === 'final') valA = parseMoney(a.querySelector('.val-final').textContent);
             else if (column === 'dividends') valA = parseMoney(a.querySelector('.div-val').textContent);
+            else if (column === 'divGrowth') valA = parseFloat(a.dataset.divGrowth) || 0;
             else if (column === 'gain') valA = parseMoney(a.querySelector('.gain-val').textContent);
             else if (column === 'return') valA = parseFloat(a.querySelector('.pct-val').textContent);
             
             if (column === 'initial') valB = parseMoney(b.querySelector('.val-initial').textContent);
             else if (column === 'final') valB = parseMoney(b.querySelector('.val-final').textContent);
             else if (column === 'dividends') valB = parseMoney(b.querySelector('.div-val').textContent);
+            else if (column === 'divGrowth') valB = parseFloat(b.dataset.divGrowth) || 0;
             else if (column === 'gain') valB = parseMoney(b.querySelector('.gain-val').textContent);
             else if (column === 'return') valB = parseFloat(b.querySelector('.pct-val').textContent);
 
@@ -450,6 +457,7 @@ function calcRow(id) {
     const startPrice = parseFloat(row.querySelector('.start-price').value) || 0;
     const endPrice = parseFloat(row.querySelector('.end-price').value) || 0;
     const divPerShare = parseFloat(row.dataset.divPerShare) || 0;
+    const divGrowth = parseFloat(row.dataset.divGrowth) || 0;
 
     const initialVal = shares * startPrice;
     const finalVal = shares * endPrice;
@@ -462,6 +470,16 @@ function calcRow(id) {
     row.querySelector('.val-initial').textContent = fmtMoney(initialVal);
     row.querySelector('.val-final').textContent = fmtMoney(finalVal);
     row.querySelector('.div-val').textContent = fmtMoney(totalDividends);
+    
+    // Display Dividend Growth
+    const divGrowthEl = row.querySelector('.div-growth');
+    if (divGrowth !== 0 && !isNaN(divGrowth)) {
+        divGrowthEl.textContent = divGrowth.toFixed(1) + "%";
+        divGrowthEl.style.color = divGrowth >= 0 ? "#198754" : "#dc3545";
+    } else {
+        divGrowthEl.textContent = "-";
+        divGrowthEl.style.color = "#666";
+    }
     
     const gainEl = row.querySelector('.gain-val');
     gainEl.textContent = (totalGain >= 0 ? "+" : "") + fmtMoney(totalGain);
@@ -484,9 +502,11 @@ function calculateAll() {
 
 function updateSummary() {
     let totalInitial = 0;
-    let totalMarketVal = 0; // Current market value of shares only
+    let totalMarketVal = 0; 
     let totalDividends = 0;
-    let weightedTimeAccumulator = 0; 
+    let weightedTimeAccumulator = 0;
+    let weightedDivGrowthAccumulator = 0;
+    let totalMarketValWithDivGrowth = 0; // For weighting the div growth
     
     const globalEndDateStr = document.getElementById('globalEndDate').value;
     const globalEndDate = dayjs(globalEndDateStr);
@@ -497,6 +517,7 @@ function updateSummary() {
         const sP = parseFloat(tr.querySelector('.start-price').value) || 0;
         const eP = parseFloat(tr.querySelector('.end-price').value) || 0;
         const dPS = parseFloat(tr.dataset.divPerShare) || 0;
+        const divGrowth = parseFloat(tr.dataset.divGrowth) || 0;
         
         const initial = shares * sP;
         const final = shares * eP;
@@ -513,6 +534,12 @@ function updateSummary() {
             const years = diffDays / 365.25;
             weightedTimeAccumulator += (initial * years);
         }
+        
+        // Weight Dividend Growth by Current Market Value (larger positions matter more)
+        if(final > 0 && !isNaN(divGrowth) && divGrowth !== 0) {
+            weightedDivGrowthAccumulator += (divGrowth * final);
+            totalMarketValWithDivGrowth += final;
+        }
     });
 
     // Breakdown Calculations
@@ -527,8 +554,7 @@ function updateSummary() {
     // Time-Weighted Averages
     const avgYears = totalInitial > 0 ? weightedTimeAccumulator / totalInitial : 0;
     
-    // 1. Capital CAGR (Price Growth Only)
-    // Formula: (EndingPrice / StartPrice)^(1/years) - 1
+    // 1. Capital CAGR
     let capCAGR = 0;
     if(totalInitial > 0 && totalMarketVal > 0 && avgYears > 0.01) {
         capCAGR = (Math.pow((totalMarketVal / totalInitial), (1 / avgYears)) - 1) * 100;
@@ -536,17 +562,18 @@ function updateSummary() {
         capCAGR = capReturnPct;
     }
 
-    // 2. Dividend Annualized Yield (Income Rate)
-    // Formula: TotalDivReturn% / AvgYears (Simple Annualized Yield)
-    // Using CAGR formula for divs is misleading as they are cashflows, not terminal values
+    // 2. Dividend Annualized Yield
     let divAnn = 0;
     if(totalInitial > 0 && avgYears > 0.01) {
         divAnn = divReturnPct / avgYears;
     } else if (totalInitial > 0 && avgYears <= 0.01) {
         divAnn = divReturnPct;
     }
+    
+    // 3. Portfolio Avg Dividend Growth
+    const avgDivGrowth = totalMarketValWithDivGrowth > 0 ? (weightedDivGrowthAccumulator / totalMarketValWithDivGrowth) : 0;
 
-    // 3. Total CAGR (Capital + Divs Reinvested Approximation)
+    // 4. Total CAGR
     let totalCAGR = 0;
     const totalEndValue = totalMarketVal + totalDividends;
     
@@ -574,7 +601,11 @@ function updateSummary() {
     divGainEl.className = "sum-value positive";
     document.getElementById('sumDivPct').textContent = divReturnPct.toFixed(2) + "%";
     document.getElementById('sumDivPct').className = "sum-sub positive";
-    document.getElementById('sumDivAnn').textContent = "Ann. Yield: " + divAnn.toFixed(2) + "%";
+    document.getElementById('sumDivYield').textContent = "Avg Yield: " + divAnn.toFixed(2) + "%";
+    
+    const divGrowthEl = document.getElementById('sumDivGrowth');
+    divGrowthEl.textContent = "Avg Growth: " + avgDivGrowth.toFixed(1) + "%";
+    divGrowthEl.style.color = avgDivGrowth >= 0 ? "#198754" : "#dc3545";
 
     // Total Return
     const totalGainEl = document.getElementById('sumTotalGain');
@@ -657,23 +688,53 @@ async function fetchRowYahooAdaptive(tr, ticker, d1, d2) {
     const timestamps = result.timestamp || [];
     const quotes = result.indicators.quote[0].close || [];
     
-    // Parse Dividends
+    // --- DIVIDEND LOGIC ---
     const dividendsObj = result.events ? result.events.dividends : {};
     let totalDividendsPerShare = 0;
+    
+    // Parse times
     const startTs = d1 ? dayjs(d1).unix() : 0;
     const endTs = d2 ? dayjs(d2).unix() : Infinity;
+    const startPlusOneYear = d1 ? dayjs(d1).add(1, 'year').unix() : 0;
+    const endMinusOneYear = d2 ? dayjs(d2).subtract(1, 'year').unix() : 0;
+
+    let divSumStart = 0; // First year
+    let divSumEnd = 0;   // Last year
+    let divCagr = 0;
 
     if (dividendsObj) {
         Object.values(dividendsObj).forEach(div => {
-            if (div.date >= startTs && div.date <= endTs) {
+            const dt = div.date;
+            // Sum Total
+            if (dt >= startTs && dt <= endTs) {
                 totalDividendsPerShare += div.amount;
+            }
+            // Sum Start Rate (First 12 months)
+            if (dt >= startTs && dt <= startPlusOneYear) {
+                divSumStart += div.amount;
+            }
+            // Sum End Rate (Last 12 months)
+            if (dt >= endMinusOneYear && dt <= endTs) {
+                divSumEnd += div.amount;
             }
         });
     }
     
-    // Store div per share
-    tr.dataset.divPerShare = totalDividendsPerShare;
+    // Calculate Div CAGR
+    // Only valid if we have > 2 years of data and non-zero dividends
+    const yearsDiff = d1 && d2 ? dayjs(d2).diff(dayjs(d1), 'year', true) : 0;
+    
+    if (yearsDiff >= 2 && divSumStart > 0 && divSumEnd > 0) {
+        // Formula: (EndRate / StartRate)^(1/(years-1)) - 1
+        // We use years-1 because growth happens between the periods
+        divCagr = (Math.pow((divSumEnd / divSumStart), (1 / (yearsDiff - 1))) - 1) * 100;
+    }
 
+    // Store data
+    tr.dataset.divPerShare = totalDividendsPerShare;
+    tr.dataset.divGrowth = divCagr;
+
+    // --- PRICE LOGIC ---
     const findPrice = (dateStr) => {
         if(!dateStr) return null;
         const targetTime = dayjs(dateStr).unix();
@@ -741,6 +802,7 @@ async function analyzePortfolio() {
             ticker: tr.querySelector('.ticker-input').value,
             shares: tr.querySelector('.num-input').value,
             dividends: tr.querySelector('.div-val').textContent,
+            divGrowth: tr.querySelector('.div-growth').textContent,
             gain: tr.querySelector('.gain-val').textContent,
             returnPct: tr.querySelector('.pct-val').textContent
         };
@@ -753,6 +815,7 @@ async function analyzePortfolio() {
         divGain: document.getElementById('sumDivGain').textContent,
         divPct: document.getElementById('sumDivPct').textContent,
         divAnn: document.getElementById('sumDivAnn').textContent,
+        divGrowth: document.getElementById('sumDivGrowth').textContent,
         totalGain: document.getElementById('sumTotalGain').textContent,
         totalPct: document.getElementById('sumTotalPct').textContent,
         cagr: document.getElementById('sumCAGR').textContent
@@ -764,18 +827,19 @@ async function analyzePortfolio() {
     
     **Performance Breakdown:**
     - Capital Appreciation: ${summary.capGain} (${summary.capPct}) | ${summary.capCAGR}
-    - Dividend Income: ${summary.divGain} (${summary.divPct}) | ${summary.divAnn}
+    - Dividend Income: ${summary.divGain} (${summary.divPct}) | ${summary.divAnn} | ${summary.divGrowth}
     - Total Return: ${summary.totalGain} (${summary.totalPct})
     - ${summary.cagr}
 
     **Holdings:**
-    ${rows.map(r => `- ${r.ticker}: Total Return ${r.returnPct} (Divs: ${r.dividends}, Total Gain: ${r.gain})`).join('\n')}
+    ${rows.map(r => `- ${r.ticker}: Total Return ${r.returnPct} (Divs: ${r.dividends}, Div Growth: ${r.divGrowth}, Total Gain: ${r.gain})`).join('\n')}
 
     **Instructions:**
     1. Executive Summary: Comment on the balance between growth (capital gains) and income (dividends).
-    2. Best/Worst Performers.
-    3. Risk/Sector Analysis.
-    4. Keep it under 250 words. Professional tone.
+    2. Comment specifically on the Dividend Growth Rate (is income growing?).
+    3. Best/Worst Performers.
+    4. Risk/Sector Analysis.
+    5. Keep it under 250 words. Professional tone.
     `;
 
     // 3. Call Gemini API
@@ -807,5 +871,3 @@ async function analyzePortfolio() {
 </script>
 </body>
 </html>
-
-
